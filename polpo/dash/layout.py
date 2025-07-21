@@ -5,6 +5,15 @@ from dash import html
 
 from .style import STYLE as S
 
+# TODO: add e.g. prefixed/suffixed layout?
+
+# TODO: do some homogenization?
+# TODO: generalize but keep syntax sugar
+
+# TODO: Column(s) -> Col(s)
+
+# TODO: homogenize use of to_dash()
+
 
 class Layout(abc.ABC):
     @abc.abstractmethod
@@ -12,11 +21,17 @@ class Layout(abc.ABC):
         pass
 
 
+class DummyLayout(Layout):
+    def to_dash(self, comps):
+        return comps
+
+
 class TwoColumnLayout(Layout):
     def to_dash(self, comps):
         right, left = comps
 
         left_comp = left.to_dash()
+        # TODO: remove stack? add simple way of doing it in component?
         right_comp = dbc.Stack(
             right.to_dash(),
             gap=3,
@@ -200,6 +215,7 @@ class GraphInputTwoColumnLayout(Layout):
 
 
 class MultiRowLayout(Layout):
+    # TODO: rename and add one for different top
     def to_dash(self, comps):
         # NB: top is treated differently
         top, other = comps
@@ -245,4 +261,109 @@ class MultiRowLayout(Layout):
                 ],
                 gap=0,
             ),
+        ]
+
+
+class OneTwoColumnsLayout(Layout):
+    # TODO: easy to generalize
+    def __init__(
+        self, sm=(14, 7, 4), width=(700, 700), top_margin="10px", sep_margin="10px"
+    ):
+        # width only applies for second row
+        super().__init__()
+        self.sm = sm
+        self.width = width
+        self.top_margin = top_margin
+        self.sep_margin = sep_margin
+
+    def to_dash(self, comps):
+        first = dbc.Row(
+            [
+                dbc.Col(comps[0], sm=14),
+            ],
+            align="center",
+            style={
+                "marginLeft": S.margin_side,
+                "marginRight": S.margin_side,
+                "marginTop": self.top_margin,
+            },
+        )
+
+        second_cols = [
+            dbc.Col(comp, sm=sm, width=width)
+            for comp, sm, width in zip(comps[1:], self.sm[1:], self.width)
+        ]
+        second = dbc.Row(
+            second_cols,
+            align="center",
+            style={
+                "marginLeft": S.margin_side,
+                "marginRight": S.margin_side,
+                "marginTop": self.sep_margin,
+            },
+        )
+        return [first, second]
+
+
+class OneOneColumnsLayout(Layout):
+    # TODO: homogenize with multirow layout?
+    def __init__(self, sep_margin="10px"):
+        super().__init__()
+        self.sep_margin = sep_margin
+
+    def to_dash(self, comps):
+        return [
+            dbc.Row(
+                [dbc.Col(comp, sm=14)],
+                align="center",
+                style={
+                    "marginLeft": S.margin_side,
+                    "marginRight": S.margin_side,
+                    "marginTop": self.sep_margin,
+                },
+            )
+            for comp in comps
+        ]
+
+
+class StackInCard(Layout):
+    def __init__(self, gap=3):
+        super().__init__()
+        self.gap = gap
+
+    def to_dash(self, comps):
+        return [
+            dbc.Card(
+                [dbc.Stack(comps, gap=self.gap)],
+                body=True,
+            )
+        ]
+
+
+class MultiColumnLayout(Layout):
+    def __init__(self, sm=4, align="center"):
+        super().__init__()
+        self.sm = sm
+        self.align = align
+
+    def to_dash(self, comps):
+        return [
+            dbc.Row(
+                [
+                    dbc.Col(
+                        html.Div(
+                            comp,
+                            style={"paddingTop": "0px"},
+                        ),
+                        sm=self.sm,
+                    )
+                    for comp in comps
+                ],
+                align=self.align,
+                style={
+                    "marginLeft": "10px",
+                    "marginRight": "10px",
+                    "marginTop": "50px",
+                },
+            )
         ]

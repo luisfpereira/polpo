@@ -9,6 +9,7 @@ from polpo.dash.components import (
     MriSliders,
     Slider,
 )
+from polpo.dash.layout import StackInCard
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.preprocessing import Map, Pipeline, Sorter, Truncater
@@ -80,6 +81,7 @@ def _create_session_info(session_id):
             DepVar(var_def=endo_status),
             DepVar(var_def=trimester),
         ],
+        layout=StackInCard(gap=0),
     )
 
 
@@ -92,6 +94,8 @@ def _create_layout():
     )
 
     sliders = _create_inputs(session_id)
+    sliders.update_lims(mri_data)
+
     session_info = _create_session_info(session_id)
 
     mri_explorer = MriExplorer(mri_data, hormone_df, sliders, session_info)
@@ -99,13 +103,7 @@ def _create_layout():
     return dbc.Container(mri_explorer.to_dash())
 
 
-def my_app(
-    data="hipp",
-    hideable=False,
-    overlay=False,
-    week=True,
-    hormones=True,
-):
+def my_app():
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",

@@ -3,6 +3,22 @@ from dash import Input, Output, callback, ctx, html
 from polpo.utils import unnest_list
 
 
+class ModelViewUpdateCallback:
+    def __init__(self, input_view, output_view, model, postproc_pred=None):
+        self.input_view = input_view
+        self.output_view = output_view
+        self.model = model
+        self.postproc_pred = postproc_pred
+
+    def create(self):
+        return create_view_model_update(
+            self.input_view,
+            self.output_view,
+            self.model,
+            postproc_pred=self.postproc_pred,
+        )
+
+
 def create_view_model_update(
     input_view,
     output_view,
