@@ -491,6 +491,65 @@ class MriGraphRow(GraphRow):
         super().__init__(id_prefix="nii-", graphs=graphs, layout=layout)
 
 
+class BasicMriExplorer(BaseComponentGroup):
+    # TODO: make session optional
+    def __init__(
+        self,
+        mri_data,
+        view_input,
+        session_input,
+        slice_input,
+        graph=None,
+        id_prefix="",
+        layout=None,
+    ):
+        # NB: sliders: an input view
+        # NB: session_info: a view of the hormones data
+
+        # TODO: controller to input
+
+        # TODO: add default sliders? need session id
+        # TODO: maybe pass session_controller?
+
+        # TODO: can this be input agnostic?
+        # TODO: rename
+        if graph is None:
+            # NB: an output view of the brain data
+            graph = Graph(
+                id_="plot", plotter=SlicePlotter(title=None, x_label=None, y_label=None)
+            )
+
+        if layout is None:
+            layout = OneColMultiRowLayout()
+
+        self.callbacks = []
+
+        mri_input = InputGroup([view_input, session_input, slice_input])
+        # NB: a model of the brain data
+        mri_model = SwitchableMriSlicesLookup(mri_data)
+        # TODO: make this more robust; MRI slicer does not work well here
+        graph_callback = ModelViewUpdateCallback(
+            mri_input,
+            graph,
+            mri_model,
+        )
+
+        self.callbacks.append(graph_callback)
+
+        self.layout = layout
+
+        super().__init__([graph, view_input, session_input, slice_input], id_prefix)
+
+    def to_dash(self):
+        # TODO: can generalize
+        out = self.layout.to_dash([comp.to_dash() for comp in self.components])
+
+        for callback in self.callbacks:
+            callback.create()
+
+        return out
+
+
 class MriExplorer(BaseComponentGroup):
     # data
     # plots
