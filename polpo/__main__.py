@@ -47,14 +47,19 @@ def mesh_explorer(
 
 @app.command()
 def mri_explorer(
+    with_session: bool = False,
+    switchable: bool = False,
     logging_level: int = 20,
 ):
     """Launch mri explorer app."""
-    from polpo.dash.app.mri_explorer import my_app
+    if not switchable:
+        from polpo.dash.app.mri_explorer import my_app
+    else:
+        from polpo.dash.app.switchable_mri_explorer import my_app
 
     logging.basicConfig(level=logging_level)
 
-    my_app()
+    my_app(with_session)
 
 
 @app.command()
