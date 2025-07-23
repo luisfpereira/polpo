@@ -19,9 +19,7 @@ class GoPlotter(Plotter, abc.ABC):
 
 
 class SlicePlotter(GoPlotter):
-    def __init__(
-        self, cmap="gray", title="Slice Visualization", x_label="X", y_label="Y"
-    ):
+    def __init__(self, cmap="gray", title=None, x_label=None, y_label=None):
         self.cmap = cmap
         self.title = title
         self.x_label = x_label
