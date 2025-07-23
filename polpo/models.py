@@ -10,7 +10,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
-from polpo.plot.mri import MriSlicer
+from polpo.plot.mri import MriSlicer, SingleSliceMriSlicer
 from polpo.preprocessing import IdentityStep
 from polpo.sklearn.adapter import AdapterPipeline, MapTransformer
 from polpo.sklearn.base import GetParamsMixin
@@ -106,7 +106,36 @@ class MriSlicesLookup(Model):
         return cls(data, index_tar, slicer)
 
     def predict(self, X):
-        index, *slice_indices = X
+        if len(X) == 2:  # to account for single index
+            index, slice_indices = X
+        else:
+            index, *slice_indices = X
+
+        datum = self.data[index - self.index_tar]
+        return self.slicer.slice(datum, slice_indices)
+
+
+class SwitchableMriSlicesLookup(Model):
+    def __init__(self, data, index_tar=1, slicer=None):
+        if slicer is None:
+            slicer = SingleSliceMriSlicer()
+
+        self.data = data
+        self.index_tar = index_tar
+        self.slicer = slicer
+
+    @classmethod
+    def from_axis(cls, data, index_tar=1, axis=0):
+        slicer = SingleSliceMriSlicer(axis=axis)
+        return cls(data, index_tar, slicer)
+
+    def predict(self, X):
+        if len(X) == 3:  # to account for single index
+            axis, index, slice_indices = X
+        else:
+            axis, index, *slice_indices = X
+
+        self.slicer.axis = axis
 
         datum = self.data[index - self.index_tar]
         return self.slicer.slice(datum, slice_indices)
