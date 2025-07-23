@@ -1,5 +1,7 @@
 """Package agnostic imports for MRI plotters."""
 
+import abc
+
 import numpy as np
 
 try:
@@ -15,12 +17,10 @@ except ImportError:
 from .base import Plotter
 
 
-class MriSlicer:
-    def __init__(self, index_ordering=(0, 1, 2), common_size=True):
-        self.index_ordering = index_ordering
-        self.common_size = common_size
-
-    def _resize(self, slices):
+class Slicer(abc.ABC):
+    @staticmethod
+    def _resize(slices):
+        # TODO: function instead?
         common_width = max([len(slice_[:, 0]) for slice_ in slices])
         common_height = max([len(slice_[0]) for slice_ in slices])
 
@@ -40,6 +40,12 @@ class MriSlicer:
 
         return slices
 
+
+class MriSlicer(Slicer):
+    def __init__(self, index_ordering=(0, 1, 2), common_size=True):
+        self.index_ordering = index_ordering
+        self.common_size = common_size
+
     def slice(self, img_fdata, slice_indices):
         slices = []
         for index, slice_index in zip(self.index_ordering, slice_indices):
@@ -51,6 +57,30 @@ class MriSlicer:
             slices = self._resize(slices)
 
         return slices
+
+
+class SingleSliceMriSlicer(Slicer):
+    def __init__(self, axis=0, common_size=True):
+        # common_size to work properly with switching
+        self.axis = axis
+        self.common_size = common_size
+
+    def slice(self, img_fdata, slice_index):
+        slicing_indices = [slice(None)] * 3
+        slicing_indices[self.axis] = slice_index
+        img = img_fdata[tuple(slicing_indices)]
+
+        slices = [img]
+        if self.common_size:
+            other_axes = [axis for axis in (0, 1, 2) if axis != self.axis]
+            for axis in other_axes:
+                slicing_indices = [slice(None)] * 3
+                slicing_indices[axis] = slice_index
+                slices.append(img_fdata[tuple(slicing_indices)])
+
+            slices = self._resize(slices)
+
+        return slices[0]
 
 
 class MriPlotter(Plotter):
