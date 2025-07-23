@@ -983,3 +983,15 @@ class SidebarElem(Component):
         page_register.add_page(self.tab_header.href, compns[-1])
 
         return compns
+
+
+class InputGroup:
+    # to distinguish between components with to_dash
+    # separates location from behavior
+    # useful to create callbacks
+
+    def __init__(self, components):
+        self.components = components
+
+    def as_input(self):
+        return unnest_list(component.as_input() for component in self.components)
