@@ -5,36 +5,41 @@ import abc
 import dash_bootstrap_components as dbc
 from dash import Input, Output, dcc, get_asset_url, html
 
-from polpo.dash.variables import VarDef
-from polpo.models import (
-    MriSlicesLookup,
-    PdDfLookup,
-)
-from polpo.plot.mesh import MeshPlotter
-from polpo.plot.mri import MriSlicer, SlicePlotter
-from polpo.utils import unnest_list
-
-from .callbacks import (
+from polpo.dash.callbacks import (
     ModelViewUpdateCallback,
     create_button_toggler_for_view_model_update,
     create_view_model_update,
 )
-from .layout import (
+from polpo.dash.layout import (
     DummyLayout,
     GraphInputTwoColumnLayout,
-    MultiColumnLayout,
+    MultiColLayout,
     MultiRowLayout,
-    OneTwoColumnsLayout,
+    NestedLayout,
+    OneColMultiRowLayout,
+    OneTwoColLayout,
     StackInCard,
-    SwappedTwoRowLayout,
     TwoColumnLayout,
 )
-from .style import STYLE as S
+from polpo.dash.style import STYLE as S
+from polpo.dash.variables import VarDef
+from polpo.models import (
+    MriSlicesLookup,
+    PdDfLookup,
+    SwitchableMriSlicesLookup,
+)
+from polpo.plot.mesh import MeshPlotter
+from polpo.plot.mri import SlicePlotter
+from polpo.utils import unnest_list
+
+# TODO: review to_dash and cache
 
 
 class Component(abc.ABC):
     def __init__(self, id_prefix=""):
         self.id_prefix = id_prefix
+
+        self._dash_component = None
 
     @abc.abstractmethod
     def to_dash(self):
@@ -51,14 +56,14 @@ class Component(abc.ABC):
 class AdaptedDashComponent(Component):
     def __init__(self, comp):
         super().__init__()
-        self.comp = comp
+        self._dash_component = comp
 
     @property
     def id(self):
-        return self.comp.id
+        return self._dash_component.id
 
     def to_dash(self):
-        return [self.comp]
+        return [self._dash_component]
 
 
 class VarDefComponent(Component, abc.ABC):
@@ -103,9 +108,14 @@ class DummyComponent(IdComponent):
         return []
 
 
-class BaseComponentGroup(Component, abc.ABC):
-    def __init__(self, components, id_prefix=""):
+class BaseComponentGroup(Component):
+    def __init__(self, components, id_prefix="", layout=None, callbacks=()):
+        if layout is None:
+            layout = DummyLayout()
+
         self.components = components
+        self.callbacks = callbacks
+        self.layout = layout
         super().__init__(id_prefix)
 
     def __getitem__(self, index):
@@ -125,14 +135,27 @@ class BaseComponentGroup(Component, abc.ABC):
             for component in self.components:
                 component.id_prefix = value
 
+    def to_dash(self):
+        if self._dash_component is not None:
+            return self._dash_component
+
+        self._dash_component = self.layout([comp.to_dash() for comp in self.components])
+
+        for callback in self.callbacks:
+            callback.create()
+
+        return self._dash_component
+
 
 class ComponentGroup(BaseComponentGroup):
+    # TODO: rename and use this name for base?
+
     def __init__(
         self, components, id_prefix="", title=None, ordering=None, layout=None
     ):
         # ordering applies only to list[VarDefComponent]
         # ordering not only orders components, but also selects them
-        # i.e. if they're not in the ordering, then will be dismissed
+        # i.e. if they're not in the ordering, then they will be dismissed
         # this is very important to avoid bugs during configuration
         if ordering is not None:
             components_ = []
@@ -159,6 +182,10 @@ class ComponentGroup(BaseComponentGroup):
                 [component.to_dash(value) for component, value in zip(self, data)]
             )
 
+        # TODO: check if behavior is not broken due to cache
+        if self._dash_component is not None:
+            return self._dash_component
+
         # TODO: should this be part of the components?
         # e.g. split between update and not updatable components
         title_label = (
@@ -175,9 +202,10 @@ class ComponentGroup(BaseComponentGroup):
             else []
         )
 
-        return self.layout.to_dash(
+        self._dash_component = self.layout(
             title_label + unnest_list([component.to_dash() for component in self])
         )
+        return self._dash_component
 
     def as_output(self, component_property=None, allow_duplicate=False):
         return unnest_list(
@@ -222,7 +250,10 @@ class RadioButton(IdComponent):
 
     def to_dash(self):
         """Convert the component into a Dash UI element."""
-        return self.layout.to_dash(
+        if self._dash_component is not None:
+            return self._dash_component
+
+        self._dash_component = self.layout(
             [
                 dcc.RadioItems(
                     id=self.id,
@@ -235,6 +266,7 @@ class RadioButton(IdComponent):
                 )
             ]
         )
+        return self._dash_component
 
     def as_input(self):
         return [Input(self.id, "value")]
@@ -263,7 +295,10 @@ class Checkbox(Component):
 
     def to_dash(self):
         """Convert the component into a Dash UI element."""
-        return [
+        if self._dash_component is not None:
+            return self._dash_component
+
+        self._dash_component = [
             dbc.FormGroup(
                 [
                     dcc.Checklist(
@@ -275,14 +310,17 @@ class Checkbox(Component):
                 ]
             )
         ]
+        return self._dash_component
 
 
 class Slider(VarDefComponent):
     """Slider."""
 
-    def __init__(self, var_def, step=1, id_prefix="", label_style=None):
-        super().__init__(var_def=var_def, id_prefix=id_prefix, id_suffix="-slider")
+    def __init__(self, var_def, step=1, id_prefix="", label_style=None, layout=None):
         # TODO: think more about this design
+
+        if layout is None:
+            layout = DummyLayout()
 
         self.step = step
 
@@ -292,11 +330,17 @@ class Slider(VarDefComponent):
             "fontFamily": S.text_fontfamily,
         }
         self.label_style = (label_style or {}).update(default_label_style)
+        self.layout = layout
+
+        super().__init__(var_def=var_def, id_prefix=id_prefix, id_suffix="-slider")
 
     def __repr__(self):
         return f"Slider({self.id})"
 
     def to_dash(self):
+        if self._dash_component is not None:
+            return self._dash_component
+
         # TODO: allow to config from config file, e.g. label_style
         label = dbc.Label(
             self.var_def.label,
@@ -328,7 +372,9 @@ class Slider(VarDefComponent):
             },
         )
 
-        return [label, slider]
+        self._dash_component = self.layout([label, slider])
+
+        return self._dash_component
 
     def as_input(self):
         return [Input(self.id, "drag_value")]
@@ -342,7 +388,10 @@ class DepVar(VarDefComponent):
         if value:
             return [f"{self.var_def.label}: {value}"]
 
-        return [
+        if self._dash_component is not None:
+            return self._dash_component
+
+        self._dash_component = [
             html.Div(
                 id=self.id,
                 style={
@@ -351,6 +400,7 @@ class DepVar(VarDefComponent):
                 },
             )
         ]
+        return self._dash_component
 
     def as_output(self, component_property=None, allow_duplicate=False):
         component_property = component_property or "children"
@@ -361,8 +411,8 @@ class DepVar(VarDefComponent):
 
 
 class Graph(IdComponent):
-    def __init__(self, id_, plotter, id_prefix="", id_suffix=""):
-        # TODO: add reasonable default plotter
+    def __init__(self, id_, plotter=None, id_prefix="", id_suffix=""):
+        # TODO: add reasonable default plotter or remove None
         super().__init__(id_, id_prefix, id_suffix)
         self.plotter = plotter
         self.graph_ = None
@@ -370,6 +420,10 @@ class Graph(IdComponent):
     def to_dash(self, data=None):
         if self.graph_ is not None:
             return [self.plotter.update(self.graph_.figure, data)]
+
+        # TODO: check if behavior is not broken due to cache
+        if self._dash_component is not None:
+            return self._dash_component
 
         self.graph_ = dcc.Graph(
             id=self.id,
@@ -381,7 +435,8 @@ class Graph(IdComponent):
                 "height": "auto",
             },
         )
-        return [self.graph_]
+        self._dash_component = [self.graph_]
+        return self._dash_component
 
     def as_output(self, component_property=None, allow_duplicate=False):
         component_property = component_property or "figure"
@@ -424,7 +479,7 @@ class GraphRow(ComponentGroup):
             ]
 
         if layout is None:
-            layout = MultiColumnLayout()
+            layout = MultiColLayout(sm=4)
 
         super().__init__(components=graphs, id_prefix=id_prefix)
         self.layout = layout
@@ -433,10 +488,16 @@ class GraphRow(ComponentGroup):
         if data is not None:
             return super().to_dash(data)
 
-        return self.layout.to_dash([graph.to_dash() for graph in self])
+        # TODO: check if behavior is not broken due to cache
+        if self._dash_component is not None:
+            return self._dash_component
+
+        self._dash_component = self.layout([graph.to_dash() for graph in self])
+        return self._dash_component
 
 
 class MriSliders(ComponentGroup):
+    # TODO: delete?
     def __init__(
         self,
         components,
@@ -491,28 +552,135 @@ class MriGraphRow(GraphRow):
         super().__init__(id_prefix="nii-", graphs=graphs, layout=layout)
 
 
-class BasicMriExplorer(BaseComponentGroup):
-    # TODO: make session optional
+class MriView(BaseComponentGroup):
     def __init__(
         self,
         mri_data,
-        view_input,
         session_input,
-        slice_input,
+        slice_input=None,
+        graph_row=None,
+        id_prefix="",
+        layout=None,
+        stack_session=True,
+    ):
+        if slice_input is None:
+            # TODO: update lims
+            slice_input = ComponentGroup(
+                [
+                    Slider(
+                        var_def=VarDef(
+                            id_="mri_x",
+                            name="X Coordinate (Changes Side View)",
+                            min_value=20,
+                            max_value=190,
+                            default_value=(20 + 190) // 2,
+                        ),
+                        step=5,
+                    ),
+                    Slider(
+                        var_def=VarDef(
+                            id_="mri_y",
+                            name="Y Coordinate (Changes Front View)",
+                            min_value=25,
+                            max_value=230,
+                            default_value=(25 + 230) // 2,
+                        ),
+                        step=5,
+                    ),
+                    Slider(
+                        var_def=VarDef(
+                            id_="mri_z",
+                            name="Z Coordinate (Changes Top View)",
+                            min_value=72,
+                            max_value=242,
+                            default_value=(72 + 242) // 2,
+                        ),
+                        step=5,
+                    ),
+                ]
+            )
+
+        if graph_row is None:
+            # NB: an output view of the brain data
+            graph_row = MriGraphRow(
+                index_ordering=list(range(len(slice_input.components)))
+            )
+
+        if layout is None:
+            # TODO: rethink this layout?
+            layout = OneColMultiRowLayout()
+
+        mri_input = (
+            ComponentGroup([session_input, slice_input], layout=StackInCard())
+            if stack_session
+            else InputGroup([session_input, slice_input])
+        )
+
+        # NB: a model of the brain data
+        mri_model = MriSlicesLookup(mri_data)
+        graph_callback = ModelViewUpdateCallback(
+            mri_input,
+            graph_row,
+            mri_model,
+        )
+
+        components = (
+            [graph_row, mri_input]
+            if stack_session
+            else [graph_row, session_input, slice_input]
+        )
+
+        super().__init__(
+            components,
+            id_prefix=id_prefix,
+            layout=layout,
+            callbacks=[graph_callback],
+        )
+
+
+class SwitchableMriView(BaseComponentGroup):
+    def __init__(
+        self,
+        mri_data,
+        session_input,
+        slice_input=None,
+        view_input=None,
         graph=None,
         id_prefix="",
         layout=None,
+        stack_session=True,
     ):
-        # NB: sliders: an input view
-        # NB: session_info: a view of the hormones data
+        if view_input is None:
+            view_input = RadioButton(
+                id_="mri-view-toggle",
+                options=[(0, "Sagittal"), (1, "Coronal"), (2, "Axial")],
+                layout=lambda comps: html.Div(
+                    [
+                        html.Span(
+                            "MRI View",
+                            style={"marginRight": "16px", "fontWeight": "bold"},
+                        ),
+                    ]
+                    + comps,
+                    style={"display": "flex", "alignItems": "center"},
+                ),
+            )
 
-        # TODO: controller to input
+        if slice_input is None:
+            slice_input = Slider(
+                VarDef(
+                    id_="mri_coord",
+                    name="MRI Slice",
+                    min_value=20,
+                    max_value=170,
+                    default_value=(20 + 170) // 2,
+                ),
+                step=5,
+                layout=DummyLayout()
+                if stack_session
+                else (lambda comps: dbc.Card(comps, body=True)),
+            )
 
-        # TODO: add default sliders? need session id
-        # TODO: maybe pass session_controller?
-
-        # TODO: can this be input agnostic?
-        # TODO: rename
         if graph is None:
             # NB: an output view of the brain data
             graph = Graph(
@@ -520,81 +688,57 @@ class BasicMriExplorer(BaseComponentGroup):
             )
 
         if layout is None:
-            layout = OneColMultiRowLayout()
+            layout = NestedLayout(
+                [
+                    OneColMultiRowLayout(),
+                    lambda comps: dbc.Col(
+                        comps,
+                        width=5,
+                        style={"overflow": "auto", "padding": "20px"},
+                    ),
+                ]
+            )
 
-        self.callbacks = []
+        if stack_session:
+            sliders = ComponentGroup(
+                [session_input, slice_input],
+                layout=StackInCard(),
+            )
+            mri_input = InputGroup([view_input, sliders])
 
-        mri_input = InputGroup([view_input, session_input, slice_input])
+            comps = [graph, view_input, sliders]
+
+        else:
+            mri_input = InputGroup([view_input, session_input, slice_input])
+            comps = [graph, view_input, session_input, slice_input]
+
         # NB: a model of the brain data
         mri_model = SwitchableMriSlicesLookup(mri_data)
-        # TODO: make this more robust; MRI slicer does not work well here
         graph_callback = ModelViewUpdateCallback(
             mri_input,
             graph,
             mri_model,
         )
 
-        self.callbacks.append(graph_callback)
-
-        self.layout = layout
-
-        super().__init__([graph, view_input, session_input, slice_input], id_prefix)
-
-    def to_dash(self):
-        # TODO: can generalize
-        out = self.layout.to_dash([comp.to_dash() for comp in self.components])
-
-        for callback in self.callbacks:
-            callback.create()
-
-        return out
+        super().__init__(
+            comps,
+            id_prefix=id_prefix,
+            layout=layout,
+            callbacks=[graph_callback],
+        )
 
 
-class MriExplorer(BaseComponentGroup):
-    # data
-    # plots
-    # sliders
-    # session info card
-
-    # also instructions?
-
-    # TODO: check if multiple callbacks can be defined
-    # TODO: rename it to mri explorer with session?
-
-    # TODO: make session optional
-    # TODO: call it MultiView?
+class SessionView(BaseComponentGroup):
     def __init__(
         self,
-        mri_data,
         hormones_df,
-        sliders,
+        session_input,
         session_info,
-        graph_row=None,
         id_prefix="",
         layout=None,
     ):
-        # NB: sliders: an input view
-        # NB: session_info: a view of the hormones data
-
-        # TODO: add default sliders? need session id
-        # TODO: maybe pass session_controller?
-
-        # TODO: can this be input agnostic?
-        # TODO: rename
-        if graph_row is None:
-            # NB: an output view of the brain data
-            graph_row = MriGraphRow(index_ordering=list(range(len(sliders) - 1)))
-
         if layout is None:
-            layout = OneTwoColumnsLayout()
-
-        self.callbacks = []
-
-        # NB: a model of the brain data
-        mri_model = MriSlicesLookup(mri_data)
-        graph_callback = ModelViewUpdateCallback(sliders, graph_row, mri_model)
-
-        self.callbacks.append(graph_callback)
+            layout = OneColMultiRowLayout()
 
         # NB: a model of the hormones data
         session_info_model = PdDfLookup(
@@ -603,23 +747,48 @@ class MriExplorer(BaseComponentGroup):
             tar=1,
         )
         session_callback = ModelViewUpdateCallback(
-            sliders[0], session_info, session_info_model
+            session_input, session_info, session_info_model
         )
 
-        self.callbacks.append(session_callback)
+        super().__init__(
+            [session_input, session_info],
+            id_prefix=id_prefix,
+            layout=layout,
+            callbacks=[session_callback],
+        )
 
-        self.layout = layout
 
-        super().__init__([graph_row, sliders, session_info], id_prefix)
+class MriExplorer(BaseComponentGroup):
+    def __init__(
+        self,
+        mri_data,
+        hormones_df,
+        session_input,
+        session_info,
+        slice_input=None,
+        graph_row=None,
+        id_prefix="",
+        layout=None,
+    ):
+        mri_view = MriView(
+            mri_data,
+            session_input,
+            slice_input=slice_input,
+            graph_row=graph_row,
+            layout=DummyLayout(),
+            stack_session=True,
+        )
 
-    def to_dash(self):
-        # TODO: can generalize
-        out = self.layout.to_dash([comp.to_dash() for comp in self.components])
+        session_view = SessionView(
+            hormones_df, session_input, session_info, layout=DummyLayout()
+        )
 
-        for callback in self.callbacks:
-            callback.create()
+        def _sorter(comps):
+            return unnest_list(comps[0] + [comps[1][1]])
 
-        return out
+        super().__init__(
+            [mri_view, session_view], layout=OneTwoColLayout(sorter=_sorter)
+        )
 
 
 class ModelBasedExplorer(BaseComponentGroup):
@@ -629,25 +798,11 @@ class ModelBasedExplorer(BaseComponentGroup):
         if layout is None:
             layout = TwoColumnLayout()
 
-        self.model = model
-        self.inputs = inputs
-        self.output = output
-        self.postproc_pred = postproc_pred
-        self.layout = layout
+        callbacks = [ModelViewUpdateCallback(inputs, output, model, postproc_pred)]
 
-        super().__init__([output, inputs], id_prefix=id_prefix)
-
-    def to_dash(self):
-        out = self.layout.to_dash([self.inputs, self.output])
-
-        create_view_model_update(
-            output_view=self.output,
-            input_view=self.inputs,
-            model=self.model,
-            postproc_pred=self.postproc_pred,
+        super().__init__(
+            [inputs, output], id_prefix=id_prefix, layout=layout, callbacks=callbacks
         )
-
-        return out
 
 
 class ImageExplorer(ModelBasedExplorer):
@@ -664,11 +819,6 @@ class MeshExplorer(ModelBasedExplorer):
     ):
         if graph is None:
             graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
-
-        self.model = model
-        self.graph = graph
-        self.inputs = inputs
-        self.postproc_pred = postproc_pred
 
         super().__init__(
             model,
@@ -696,7 +846,8 @@ class SharedInputModelsBasedExplorer(BaseComponentGroup):
         super().__init__([outputs, inputs], id_prefix=id_prefix)
 
     def to_dash(self):
-        out = self.layout.to_dash([self.inputs, self.outputs])
+        # TODO: update
+        out = self.layout([self.inputs, self.outputs])
 
         for output_, model in zip(self.outputs, self.models):
             create_view_model_update(
@@ -742,6 +893,7 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
         super().__init__([self.graph].extend(self.inputs), id_prefix=id_prefix)
 
     def to_dash(self):
+        # TODO: update
         inputs_cards = ComponentGroup(
             [
                 HideableComponent(
@@ -795,7 +947,7 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
 
         inputs = ComponentGroup([button, checklist, inputs_cards])
 
-        out = self.layout.to_dash([inputs, self.graph])
+        out = self.layout([inputs, self.graph])
 
         create_button_toggler_for_view_model_update(
             output_view=self.graph,
@@ -812,16 +964,26 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
 
 class HideableComponent(IdComponent):
     def __init__(self, id_, dash_component, id_prefix="", id_suffix=""):
+        # TODO: rename dash_component to component
         super().__init__(id_, id_prefix, id_suffix)
-        self.dash_component = dash_component
+
+        if not hasattr(dash_component, "to_dash"):
+            dash_component = AdaptedDashComponent(dash_component)
+
+        self.component = dash_component
 
     def to_dash(self):
-        return [
+        if self._dash_component is not None:
+            return self._dash_component
+
+        self._dash_component = [
             html.Div(
-                children=[self.dash_component],
+                children=self.component.to_dash(),
                 id=self.id,
             )
         ]
+
+        return self._dash_component
 
 
 class Checklist(IdComponent):
@@ -863,7 +1025,10 @@ class Checklist(IdComponent):
 
     def to_dash(self):
         # NB: defaults to uncheck if not specified
-        return [
+        if self._dash_component is not None:
+            return self._dash_component
+
+        self._dash_component = [
             dcc.Checklist(
                 id=self.id,
                 options=self.options,
@@ -871,6 +1036,7 @@ class Checklist(IdComponent):
                 inline=self.inline,
             )
         ]
+        return self._dash_component
 
     def as_bool(self, value):
         # NB: updates read from callbacks
@@ -914,7 +1080,10 @@ class SidebarHeader(Component):
         self.image_width = image_width
 
     def to_dash(self):
-        return [
+        if self._dash_component is not None:
+            return self._dash_component
+
+        self._dash_component = [
             dbc.Row(
                 [
                     dbc.Col(
@@ -932,6 +1101,7 @@ class SidebarHeader(Component):
                 align="center",
             )
         ]
+        return self._dash_component
 
 
 class FunctionComponent(Component):
@@ -952,7 +1122,12 @@ class FunctionComponent(Component):
         self.kwargs = kwargs
 
     def to_dash(self):
-        return self.func(**self.kwargs)
+        if self._dash_component is not None:
+            return self._dash_component
+
+        self._dash_component = self.func(**self.kwargs)
+
+        return self._dash_component
 
 
 class SidebarElem(Component):
