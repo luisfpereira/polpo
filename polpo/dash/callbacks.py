@@ -35,7 +35,7 @@ def create_view_model_update(
         prevent_initial_call=prevent_initial_call,
     )
     def view_model_update(*args):
-        if args[0] is None:
+        if None in args:
             return empty_output
 
         pred = model.predict(args)
