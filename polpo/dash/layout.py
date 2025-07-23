@@ -12,44 +12,62 @@ from .style import STYLE as S
 
 # TODO: Column(s) -> Col(s)
 
-# TODO: homogenize use of to_dash()
+
+# TODO: take use of components layout to simplify this
 
 
 class Layout(abc.ABC):
+    def __init__(self, sorter=None):
+        if sorter is None:
+            sorter = lambda x: x
+        self.sorter = sorter
+
     @abc.abstractmethod
-    def to_dash(self, comps):
+    def __call__(self, comps):
         pass
 
 
 class DummyLayout(Layout):
-    def to_dash(self, comps):
+    def __call__(self, comps):
+        return comps
+
+
+class NestedLayout(Layout):
+    def __init__(self, layouts, sorter=None):
+        super().__init__(sorter=sorter)
+        self.layouts = layouts
+
+    def __call__(self, comps):
+        comps = self.sorter(comps)
+        for layout in self.layouts:
+            comps = layout(comps)
+
         return comps
 
 
 class TwoColumnLayout(Layout):
-    def to_dash(self, comps):
-        right, left = comps
+    def __call__(self, comps):
+        right, left = self.sorter(comps)
 
-        left_comp = left.to_dash()
-        # TODO: remove stack? add simple way of doing it in component?
-        right_comp = dbc.Stack(
-            right.to_dash(),
-            gap=3,
-        )
+        # TODO: revisit and delete comment
+        # right_comp = dbc.Stack(
+        #     right.to_dash(),
+        #     gap=3,
+        # )
 
         return [
             dbc.Row(
                 [
                     dbc.Col(
                         html.Div(
-                            left_comp,
+                            left,
                             style={"paddingTop": "0px"},
                         ),
                         sm=6,
                         width=900,
                     ),
                     dbc.Col(sm=3, width=100),
-                    dbc.Col(right_comp, sm=3, width=500),
+                    dbc.Col(right, sm=3, width=500),
                 ],
                 align="center",
                 style={
@@ -62,23 +80,23 @@ class TwoColumnLayout(Layout):
 
 
 class SwappedTwoColumnLayout(Layout):
-    def to_dash(self, comps):
-        left, right = comps
+    def __call__(self, comps):
+        left, right = self.sorter(comps)
 
-        right_comp = right.to_dash()
-        left_comp = dbc.Stack(
-            left.to_dash(),
-            gap=3,
-        )
+        # TODO: revisit and delete comment
+        # left_comp = dbc.Stack(
+        #     left.to_dash(),
+        #     gap=3,
+        # )
 
         return [
             dbc.Row(
                 [
-                    dbc.Col(left_comp, sm=3, width=500),
+                    dbc.Col(left, sm=3, width=500),
                     dbc.Col(sm=3, width=100),
                     dbc.Col(
                         html.Div(
-                            right_comp,
+                            right,
                             style={"paddingTop": "0px"},
                         ),
                         sm=6,
@@ -96,14 +114,14 @@ class SwappedTwoColumnLayout(Layout):
 
 
 class TwoRowLayout(Layout):
-    def to_dash(self, comps):
-        top, bottom = comps
+    def __call__(self, comps):
+        top, bottom = self.sorter(comps)
 
-        bottom_comp = bottom.to_dash()
-        top_comp = dbc.Stack(
-            top.to_dash(),
-            gap=3,
-        )
+        # TODO: revisit and delete comment
+        # top_comp = dbc.Stack(
+        #     top.to_dash(),
+        #     gap=3,
+        # )
 
         row_style = {
             "marginLeft": S.margin_side,
@@ -112,7 +130,7 @@ class TwoRowLayout(Layout):
         }
         return [
             dbc.Row(
-                [dbc.Col(top_comp, sm=3, width=500)],
+                [dbc.Col(top, sm=3, width=500)],
                 align="center",
                 style=row_style,
             ),
@@ -120,7 +138,7 @@ class TwoRowLayout(Layout):
                 [
                     dbc.Col(
                         html.Div(
-                            bottom_comp,
+                            bottom,
                             style={"paddingTop": "0px"},
                         ),
                         sm=6,
@@ -134,14 +152,14 @@ class TwoRowLayout(Layout):
 
 
 class SwappedTwoRowLayout(Layout):
-    def to_dash(self, comps):
-        bottom, top = comps
+    def __call__(self, comps):
+        bottom, top = self.sorter(comps)
 
-        top_comp = top.to_dash()
-        bottom_comp = dbc.Stack(
-            bottom.to_dash(),
-            gap=3,
-        )
+        # TODO: revisit and delete comment
+        # bottom_comp = dbc.Stack(
+        #     bottom.to_dash(),
+        #     gap=3,
+        # )
 
         row_style = {
             "marginLeft": S.margin_side,
@@ -153,7 +171,7 @@ class SwappedTwoRowLayout(Layout):
                 [
                     dbc.Col(
                         html.Div(
-                            top_comp,
+                            top,
                             style={"paddingTop": "0px"},
                         ),
                         sm=6,
@@ -164,7 +182,7 @@ class SwappedTwoRowLayout(Layout):
                 style=row_style,
             ),
             dbc.Row(
-                [dbc.Col(bottom_comp, sm=3, width=500)],
+                [dbc.Col(bottom, sm=3, width=500)],
                 align="center",
                 style=row_style,
             ),
@@ -172,18 +190,15 @@ class SwappedTwoRowLayout(Layout):
 
 
 class GraphInputTwoColumnLayout(Layout):
-    def to_dash(self, comps):
-        inputs, graph = comps
-
-        graph_comp = graph.to_dash()
-        inputs_comp = inputs.to_dash()
+    def __call__(self, comps):
+        inputs, graph = self.sorter(comps)
 
         return [
             dbc.Row(
                 [
                     dbc.Col(
                         html.Div(
-                            graph_comp,
+                            graph,
                             style={
                                 "paddingTop": "0px",
                                 "width": "100%",  # full width of this col
@@ -196,7 +211,7 @@ class GraphInputTwoColumnLayout(Layout):
                         style={"padding": "10px"},
                     ),
                     dbc.Col(
-                        html.Div(inputs_comp),
+                        html.Div(inputs),
                         xs=12,
                         sm=12,
                         md=6,  # full width on small screens, half on medium+
@@ -216,15 +231,15 @@ class GraphInputTwoColumnLayout(Layout):
 
 class MultiRowLayout(Layout):
     # TODO: rename and add one for different top
-    def to_dash(self, comps):
+    def __call__(self, comps):
         # NB: top is treated differently
-        top, other = comps
+        top, other = self.sorter(comps)
 
-        top_comp = dbc.Stack(
-            top.to_dash(),
-            gap=3,
-        )
-        other_comps = [other_.to_dash() for other_ in other]
+        # TODO: revisit and delete comment
+        # top_comp = dbc.Stack(
+        #     top.to_dash(),
+        #     gap=3,
+        # )
 
         top_row_style = {
             "marginLeft": S.margin_side,
@@ -237,7 +252,7 @@ class MultiRowLayout(Layout):
         }
         return [
             dbc.Row(
-                [dbc.Col(top_comp, sm=3, width=500)],
+                [dbc.Col(top, sm=3, width=500)],
                 align="center",
                 style=top_row_style,
             ),
@@ -257,29 +272,40 @@ class MultiRowLayout(Layout):
                         ],
                         style=row_style,
                     )
-                    for other_comp in other_comps
+                    for other_comp in other
                 ],
                 gap=0,
             ),
         ]
 
 
-class OneTwoColumnsLayout(Layout):
+class OneTwoColLayout(Layout):
     # TODO: easy to generalize
     def __init__(
-        self, sm=(14, 7, 4), width=(700, 700), top_margin="10px", sep_margin="10px"
+        self,
+        sm=(14, 7, 4),
+        width=(700, 700),
+        top_margin="10px",
+        sep_margin="10px",
+        sorter=None,
     ):
         # width only applies for second row
-        super().__init__()
+        super().__init__(sorter=sorter)
         self.sm = sm
         self.width = width
         self.top_margin = top_margin
         self.sep_margin = sep_margin
 
-    def to_dash(self, comps):
+    def __call__(self, comps):
+        comps = self.sorter(comps)
+
         first = dbc.Row(
             [
-                dbc.Col(comps[0], sm=14),
+                dbc.Col(
+                    comps[0],
+                    sm=self.sm[0],
+                    width=sum(self.width),
+                ),
             ],
             align="center",
             style={
@@ -305,13 +331,15 @@ class OneTwoColumnsLayout(Layout):
         return [first, second]
 
 
-class OneOneColumnsLayout(Layout):
+class OneColMultiRowLayout(Layout):
     # TODO: homogenize with multirow layout?
-    def __init__(self, sep_margin="10px"):
-        super().__init__()
+    def __init__(self, sep_margin="10px", sorter=None):
+        super().__init__(sorter=sorter)
         self.sep_margin = sep_margin
 
-    def to_dash(self, comps):
+    def __call__(self, comps):
+        comps = self.sorter(comps)
+
         return [
             dbc.Row(
                 [dbc.Col(comp, sm=14)],
@@ -327,11 +355,13 @@ class OneOneColumnsLayout(Layout):
 
 
 class StackInCard(Layout):
-    def __init__(self, gap=3):
-        super().__init__()
+    def __init__(self, gap=3, sorter=None):
+        super().__init__(sorter=sorter)
         self.gap = gap
 
-    def to_dash(self, comps):
+    def __call__(self, comps):
+        comps = self.sorter(comps)
+
         return [
             dbc.Card(
                 [dbc.Stack(comps, gap=self.gap)],
@@ -340,30 +370,57 @@ class StackInCard(Layout):
         ]
 
 
-class MultiColumnLayout(Layout):
-    def __init__(self, sm=4, align="center"):
-        super().__init__()
+class MultiColLayout(Layout):
+    def __init__(
+        self,
+        sm=None,
+        width=None,
+        align="center",
+        sorter=None,
+        col_style=None,
+        row_style=None,
+    ):
+        super().__init__(sorter=sorter)
+        if col_style is None:
+            col_style = {}
+
+        if row_style is None:
+            row_style = {}
+
         self.sm = sm
         self.align = align
+        self.width = width
 
-    def to_dash(self, comps):
+        self.col_style = {"padding": "20px"}.update(col_style)
+        self.row_style = {
+            "marginLeft": "10px",
+            "marginRight": "10px",
+            "marginTop": "50px",
+        }.update(row_style)
+
+    def __call__(self, comps):
+        comps = self.sorter(comps)
+
+        sm = self.sm
+        if isinstance(sm, int) or sm is None:
+            sm = [sm] * len(comps)
+
+        width = self.width
+        if isinstance(width, int) or width is None:
+            width = [width] * len(comps)
+
         return [
             dbc.Row(
                 [
                     dbc.Col(
-                        html.Div(
-                            comp,
-                            style={"paddingTop": "0px"},
-                        ),
-                        sm=self.sm,
+                        comp,
+                        sm=sm_,
+                        width=width_,
+                        style=self.col_style,
                     )
-                    for comp in comps
+                    for comp, sm_, width_ in zip(comps, sm, width)
                 ],
                 align=self.align,
-                style={
-                    "marginLeft": "10px",
-                    "marginRight": "10px",
-                    "marginTop": "50px",
-                },
+                style=self.row_style,
             )
         ]
