@@ -194,7 +194,7 @@ class ComponentGroup(BaseComponentGroup):
         return unnest_list(component.as_input() for component in self)
 
 
-class RadioButton(Component):
+class RadioButton(IdComponent):
     """Radio button group.
 
     Parameters
@@ -209,29 +209,32 @@ class RadioButton(Component):
         Whether to display options inline (horizontally).
     """
 
-    def __init__(self, id_, options, default_value=None, inline=True):
+    def __init__(self, id_, options, default_value=None, inline=True, layout=None):
         super().__init__(id_=id_)
         self.options = options
         self.default_value = default_value or options[0][0]
         self.inline = inline
 
+        if layout is None:
+            layout = DummyLayout()
+
+        self.layout = layout
+
     def to_dash(self):
         """Convert the component into a Dash UI element."""
-        return [
-            dbc.FormGroup(
-                [
-                    dcc.RadioItems(
-                        id=self.id,
-                        options=[
-                            {"label": label, "value": value}
-                            for value, label in self.options
-                        ],
-                        value=self.default_value,
-                        inline=self.inline,
-                    )
-                ]
-            )
-        ]
+        return self.layout.to_dash(
+            [
+                dcc.RadioItems(
+                    id=self.id,
+                    options=[
+                        {"label": label, "value": value}
+                        for value, label in self.options
+                    ],
+                    value=self.default_value,
+                    inline=self.inline,
+                )
+            ]
+        )
 
     def as_input(self):
         return [Input(self.id, "value")]
