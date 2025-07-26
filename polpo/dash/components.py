@@ -18,7 +18,6 @@ from polpo.dash.layout import (
     OneColMultiRowLayout,
     OneTwoColLayout,
     StackInCard,
-    TwoColumnLayout,
 )
 from polpo.dash.style import STYLE as S
 from polpo.dash.variables import VarDef
@@ -34,6 +33,8 @@ from polpo.utils import unnest_list
 # TODO: review to_dash and cache
 
 # TODO: rename callbacks to callbacks_factory
+
+# TODO: properly define input-output order
 
 
 class Component(abc.ABC):
@@ -115,13 +116,16 @@ class DummyComponent(Component):
 
 
 class BaseComponentGroup(Component):
-    def __init__(self, components, id_prefix="", layout=None, callbacks=()):
+    def __init__(
+        self, components, id_prefix="", layout=None, callbacks=(), unnest=True
+    ):
         if layout is None:
             layout = DummyLayout()
 
         self.components = components
         self.callbacks = callbacks
         self.layout = layout
+        self.unnest = unnest
         super().__init__(id_prefix)
 
     def __getitem__(self, index):
@@ -145,10 +149,11 @@ class BaseComponentGroup(Component):
         if self._dash_component is not None:
             return self._dash_component
 
-        # TODO: check unnesting behavior
-        self._dash_component = self.layout(
-            unnest_list([comp.to_dash() for comp in self.components])
-        )
+        dash_comps = [comp.to_dash() for comp in self.components]
+        if self.unnest:
+            dash_comps = unnest_list(dash_comps)
+
+        self._dash_component = self.layout(dash_comps)
 
         for callback in self.callbacks:
             callback()
@@ -456,19 +461,23 @@ class Graph(IdComponent):
 
 
 class Image(IdComponent):
-    def __init__(self, id_, id_prefix="", id_suffix="", style=None):
+    def __init__(self, id_, id_prefix="", id_suffix="", style=None, layout=None):
         super().__init__(id_, id_prefix, id_suffix)
+
+        if layout is None:
+            layout = DummyLayout()
 
         if style is None:
             style = {"width": "100%"}
 
+        self.layout = layout
         self._image = html.Img(id=self.id_, src="", style=style)
 
     def to_dash(self, data=None):
         if data is not None:
             return [data]
 
-        return [self._image]
+        return self.layout([self._image])
 
     def as_output(self, component_property="src", allow_duplicate=False):
         return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
@@ -805,19 +814,33 @@ class ModelBasedExplorer(BaseComponentGroup):
         self, model, inputs, output, id_prefix="", postproc_pred=None, layout=None
     ):
         if layout is None:
-            layout = TwoColumnLayout()
+            layout = MultiColLayout()
 
-        callbacks = [ViewModelUpdateFactory(inputs, output, model, postproc_pred)]
+        callback = ViewModelUpdateFactory(inputs, output, model, postproc_pred)
 
         super().__init__(
-            [inputs, output], id_prefix=id_prefix, layout=layout, callbacks=callbacks
+            [inputs, output],
+            id_prefix=id_prefix,
+            layout=layout,
+            callbacks=[callback],
+            unnest=False,
         )
 
 
 class ImageExplorer(ModelBasedExplorer):
     def __init__(self, model, inputs, image=None, id_prefix="", layout=None):
+        if layout is None:
+            layout = MultiColLayout(sm=[6, 3], width=[900, 500])
+
         if image is None:
-            image = Image(id_="image-expl", id_prefix=id_prefix)
+            image = Image(
+                id_="image-expl",
+                id_prefix=id_prefix,
+                layout=lambda comp: html.Div(
+                    comp,
+                    style={"paddingTop": "0px"},
+                ),
+            )
 
         super().__init__(model, inputs, image, id_prefix=id_prefix, layout=layout)
 
@@ -849,16 +872,20 @@ class SharedInputModelsBasedExplorer(BaseComponentGroup):
 
         callbacks = [
             ViewModelUpdateFactory(
-                output_view=output,
-                input_view=inputs,
-                model=model,
+                inputs,
+                output,
+                model,
                 postproc_pred=postproc_pred,
             )
-            for model, output in zip(models, outputs)
+            for output, model in zip(outputs, models)
         ]
 
         super().__init__(
-            [outputs, inputs], id_prefix=id_prefix, layout=layout, callbacks=callbacks
+            [outputs, inputs],
+            id_prefix=id_prefix,
+            layout=layout,
+            callbacks=callbacks,
+            unnest=False,
         )
 
 
@@ -941,14 +968,14 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
             postproc_pred=postproc_pred,
         )
 
-        # TODO: check differences between Base and ComponentGroup here
-        inputs_ = ComponentGroup([button, checklist, inputs_cards])
+        inputs_ = BaseComponentGroup([button, checklist, inputs_cards])
 
         super().__init__(
             [graph, inputs_],
             id_prefix=id_prefix,
             layout=layout,
             callbacks=[callback],
+            unnest=False,
         )
 
 

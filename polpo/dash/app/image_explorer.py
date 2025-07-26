@@ -6,9 +6,9 @@ from dash import Dash, get_asset_url
 
 from polpo.dash.components import ImageExplorer, Slider
 from polpo.dash.layout import (
+    MultiColLayout,
     SwappedTwoColumnLayout,
     SwappedTwoRowLayout,
-    TwoColumnLayout,
     TwoRowLayout,
 )
 from polpo.dash.style import update_style
@@ -47,7 +47,7 @@ def _create_layout(assets_folder, column=True, swapped=False):
         if swapped:
             layout = SwappedTwoColumnLayout()
         else:
-            layout = TwoColumnLayout()
+            layout = MultiColLayout()
     else:
         if swapped:
             layout = SwappedTwoRowLayout()
@@ -58,7 +58,7 @@ def _create_layout(assets_folder, column=True, swapped=False):
     return dbc.Container(image_seq_explorer.to_dash())
 
 
-def my_app(column=True, swapped=False):
+def my_app(column=True, swapped=False, run=True):
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",
@@ -82,9 +82,12 @@ def my_app(column=True, swapped=False):
 
     app.layout = layout
 
-    app.run(
-        debug=True,
-        use_reloader=False,
-        host="0.0.0.0",
-        port="8050",
-    )
+    if run:
+        app.run(
+            debug=True,
+            use_reloader=False,
+            host="0.0.0.0",
+            port="8050",
+        )
+
+    return app

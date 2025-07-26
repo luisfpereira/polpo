@@ -45,40 +45,6 @@ class NestedLayout(Layout):
         return comps
 
 
-class TwoColumnLayout(Layout):
-    def __call__(self, comps):
-        right, left = self.sorter(comps)
-
-        # TODO: revisit and delete comment
-        # right_comp = dbc.Stack(
-        #     right.to_dash(),
-        #     gap=3,
-        # )
-
-        return [
-            dbc.Row(
-                [
-                    dbc.Col(
-                        html.Div(
-                            left,
-                            style={"paddingTop": "0px"},
-                        ),
-                        sm=6,
-                        width=900,
-                    ),
-                    dbc.Col(sm=3, width=100),
-                    dbc.Col(right, sm=3, width=500),
-                ],
-                align="center",
-                style={
-                    "marginLeft": S.margin_side,
-                    "marginRight": S.margin_side,
-                    "marginTop": "50px",
-                },
-            ),
-        ]
-
-
 class SwappedTwoColumnLayout(Layout):
     def __call__(self, comps):
         left, right = self.sorter(comps)
@@ -116,12 +82,6 @@ class SwappedTwoColumnLayout(Layout):
 class TwoRowLayout(Layout):
     def __call__(self, comps):
         top, bottom = self.sorter(comps)
-
-        # TODO: revisit and delete comment
-        # top_comp = dbc.Stack(
-        #     top.to_dash(),
-        #     gap=3,
-        # )
 
         row_style = {
             "marginLeft": S.margin_side,
@@ -190,8 +150,13 @@ class SwappedTwoRowLayout(Layout):
 
 
 class GraphInputTwoColumnLayout(Layout):
+    def __init__(self, row_align="center", sorter=None):
+        super().__init__(sorter=sorter)
+        self.row_align = row_align
+
     def __call__(self, comps):
-        inputs, graph = self.sorter(comps)
+        # TODO: better name than inputs?
+        graph, inputs = self.sorter(comps)
 
         return [
             dbc.Row(
@@ -218,7 +183,7 @@ class GraphInputTwoColumnLayout(Layout):
                         style={"padding": "10px"},
                     ),
                 ],
-                align="start",
+                align=self.row_align,
                 style={
                     "margin": "0 auto",
                     "width": "100%",
@@ -234,12 +199,6 @@ class MultiRowLayout(Layout):
     def __call__(self, comps):
         # NB: top is treated differently
         top, other = self.sorter(comps)
-
-        # TODO: revisit and delete comment
-        # top_comp = dbc.Stack(
-        #     top.to_dash(),
-        #     gap=3,
-        # )
 
         top_row_style = {
             "marginLeft": S.margin_side,
@@ -393,8 +352,8 @@ class MultiColLayout(Layout):
 
         self.col_style = {"padding": "20px"}.update(col_style)
         self.row_style = {
-            "marginLeft": "10px",
-            "marginRight": "10px",
+            "marginLeft": S.margin_side,
+            "marginRight": S.margin_side,
             "marginTop": "50px",
         }.update(row_style)
 

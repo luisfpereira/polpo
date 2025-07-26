@@ -4,7 +4,12 @@ import sys
 import dash_bootstrap_components as dbc
 from dash import Dash, get_asset_url
 
-from polpo.dash.components import Image, SharedInputModelsBasedExplorer, Slider
+from polpo.dash.components import (
+    BaseComponentGroup,
+    Image,
+    SharedInputModelsBasedExplorer,
+    Slider,
+)
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.models import ListLookup
@@ -38,10 +43,12 @@ def _create_layout(assets_folder):
     inputs = Slider(digits)
 
     image_style = {"width": "50%"}
-    outputs = [
-        Image(id_=f"image-expl-{index}", style=image_style)
-        for index in range(len(models))
-    ]
+    outputs = BaseComponentGroup(
+        [
+            Image(id_=f"image-expl-{index}", style=image_style)
+            for index in range(len(models))
+        ]
+    )
 
     image_seq_explorer = SharedInputModelsBasedExplorer(models, inputs, outputs)
     return dbc.Container(image_seq_explorer.to_dash())
