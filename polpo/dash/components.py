@@ -6,9 +6,8 @@ import dash_bootstrap_components as dbc
 from dash import Input, Output, dcc, get_asset_url, html
 
 from polpo.dash.callbacks import (
-    ModelViewUpdateCallback,
-    create_button_toggler_for_view_model_update,
-    create_view_model_update,
+    ButtonTogglerForViewModelUpdateFactory,
+    ViewModelUpdateFactory,
 )
 from polpo.dash.layout import (
     DummyLayout,
@@ -34,6 +33,8 @@ from polpo.utils import unnest_list
 
 # TODO: review to_dash and cache
 
+# TODO: rename callbacks to callbacks_factory
+
 
 class Component(abc.ABC):
     def __init__(self, id_prefix=""):
@@ -50,6 +51,7 @@ class Component(abc.ABC):
         return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
 
     def prefix(self, name):
+        # TODO: may want to remove this
         return f"{self.id_prefix}{name}"
 
 
@@ -89,14 +91,18 @@ class IdComponent(Component, abc.ABC):
         return f"{self.id_prefix}{self.id_}{self.id_suffix}"
 
 
-class DummyComponent(IdComponent):
+class DummyComponent(Component):
     """Dummy component.
 
     Can be used in replacement of optional components.
     """
 
     def __init__(self):
-        super().__init__(id_="dummy")
+        super().__init__()
+
+    @property
+    def id(self):
+        return None
 
     def as_output(self, component_property=None, allow_duplicate=False):
         return []
@@ -139,12 +145,29 @@ class BaseComponentGroup(Component):
         if self._dash_component is not None:
             return self._dash_component
 
-        self._dash_component = self.layout([comp.to_dash() for comp in self.components])
+        # TODO: check unnesting behavior
+        self._dash_component = self.layout(
+            unnest_list([comp.to_dash() for comp in self.components])
+        )
 
         for callback in self.callbacks:
-            callback.create()
+            callback()
 
         return self._dash_component
+
+    def as_output(self, component_property=None, allow_duplicate=False):
+        return unnest_list(
+            component.as_output(
+                component_property=component_property, allow_duplicate=allow_duplicate
+            )
+            for component in self
+        )
+
+    def as_empty_output(self):
+        return unnest_list(component.as_empty_output() for component in self)
+
+    def as_input(self):
+        return unnest_list(component.as_input() for component in self)
 
 
 class ComponentGroup(BaseComponentGroup):
@@ -206,20 +229,6 @@ class ComponentGroup(BaseComponentGroup):
             title_label + unnest_list([component.to_dash() for component in self])
         )
         return self._dash_component
-
-    def as_output(self, component_property=None, allow_duplicate=False):
-        return unnest_list(
-            component.as_output(
-                component_property=component_property, allow_duplicate=allow_duplicate
-            )
-            for component in self
-        )
-
-    def as_empty_output(self):
-        return unnest_list(component.as_empty_output() for component in self)
-
-    def as_input(self):
-        return unnest_list(component.as_input() for component in self)
 
 
 class RadioButton(IdComponent):
@@ -618,7 +627,7 @@ class MriView(BaseComponentGroup):
 
         # NB: a model of the brain data
         mri_model = MriSlicesLookup(mri_data)
-        graph_callback = ModelViewUpdateCallback(
+        graph_callback = ViewModelUpdateFactory(
             mri_input,
             graph_row,
             mri_model,
@@ -714,7 +723,7 @@ class SwitchableMriView(BaseComponentGroup):
 
         # NB: a model of the brain data
         mri_model = SwitchableMriSlicesLookup(mri_data)
-        graph_callback = ModelViewUpdateCallback(
+        graph_callback = ViewModelUpdateFactory(
             mri_input,
             graph,
             mri_model,
@@ -746,7 +755,7 @@ class SessionView(BaseComponentGroup):
             output_keys=[elem.var_def.id for elem in session_info],
             tar=1,
         )
-        session_callback = ModelViewUpdateCallback(
+        session_callback = ViewModelUpdateFactory(
             session_input, session_info, session_info_model
         )
 
@@ -798,7 +807,7 @@ class ModelBasedExplorer(BaseComponentGroup):
         if layout is None:
             layout = TwoColumnLayout()
 
-        callbacks = [ModelViewUpdateCallback(inputs, output, model, postproc_pred)]
+        callbacks = [ViewModelUpdateFactory(inputs, output, model, postproc_pred)]
 
         super().__init__(
             [inputs, output], id_prefix=id_prefix, layout=layout, callbacks=callbacks
@@ -817,6 +826,7 @@ class MeshExplorer(ModelBasedExplorer):
     def __init__(
         self, model, inputs, graph=None, id_prefix="", postproc_pred=None, layout=None
     ):
+        # TODO: check need/use
         if graph is None:
             graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
 
@@ -837,27 +847,19 @@ class SharedInputModelsBasedExplorer(BaseComponentGroup):
         if layout is None:
             layout = MultiRowLayout()
 
-        self.models = models
-        self.inputs = inputs
-        self.outputs = outputs
-        self.postproc_pred = postproc_pred
-        self.layout = layout
-
-        super().__init__([outputs, inputs], id_prefix=id_prefix)
-
-    def to_dash(self):
-        # TODO: update
-        out = self.layout([self.inputs, self.outputs])
-
-        for output_, model in zip(self.outputs, self.models):
-            create_view_model_update(
-                output_view=output_,
-                input_view=self.inputs,
+        callbacks = [
+            ViewModelUpdateFactory(
+                output_view=output,
+                input_view=inputs,
                 model=model,
-                postproc_pred=self.postproc_pred,
+                postproc_pred=postproc_pred,
             )
+            for model, output in zip(models, outputs)
+        ]
 
-        return out
+        super().__init__(
+            [outputs, inputs], id_prefix=id_prefix, layout=layout, callbacks=callbacks
+        )
 
 
 class MultiModelsMeshExplorer(BaseComponentGroup):
@@ -872,6 +874,7 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
         postproc_pred=None,
         layout=None,
     ):
+        # TODO: add more syntax sugar? e.g. pass data
         # ignores button if only one model
 
         # TODO: add verifications?
@@ -881,51 +884,32 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
         if layout is None:
             layout = GraphInputTwoColumnLayout()
 
-        self.graph = graph
-        self.models = models
-        self.inputs = inputs
-        self.button_label = button_label
-        # NB: controls visibility of plots
-        self.checkbox_labels = checkbox_labels
-        self.postproc_pred = postproc_pred
-        self.layout = layout
-
-        super().__init__([self.graph].extend(self.inputs), id_prefix=id_prefix)
-
-    def to_dash(self):
-        # TODO: update
-        inputs_cards = ComponentGroup(
+        # TODO: as output_group?
+        inputs_cards = BaseComponentGroup(
             [
                 HideableComponent(
                     id_=f"{index}_slider_container",
-                    dash_component=dbc.Card(
-                        dbc.Stack(
-                            component.to_dash(),
-                            gap=3,
-                        ),
-                        body=True,
-                    ),
-                    id_prefix=self.id_prefix,
+                    # TODO: this goes to the input
+                    component=comp,
                 )
-                for index, component in enumerate(self.inputs)
+                for index, comp in enumerate(inputs)
             ]
         )
 
-        toggle_id = self.prefix("switch-model-button") if len(self.models) > 1 else None
-        checkbox_id = self.prefix("show-model-checkbox")
-
-        if self.checkbox_labels:
+        # NB: controls visibility of plots
+        if checkbox_labels:
             # TODO: allow control of default visibility?
-            n_graphs = self.graph.plotter.n_graphs
+            n_graphs = graph.plotter.n_graphs
 
             checkbox_labels = [
                 label
                 if len(label) == 3
                 else (label[0], label[1], label[0] < n_graphs - 1)
-                for label in self.checkbox_labels
+                for label in checkbox_labels
             ]
+            # TODO: check id_prefix
             checklist = Checklist(
-                id_=checkbox_id,
+                id_="show-model-checkbox",
                 checkbox_labels=checkbox_labels,
                 # NB: assumes graph has plotter with n_graphs
                 n_options=n_graphs,
@@ -933,44 +917,51 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
         else:
             checklist = DummyComponent()
 
+        # TODO: will have to self.prefix_id; check need though!
         button = (
             AdaptedDashComponent(
                 html.Button(
-                    self.button_label,
-                    id=toggle_id,
+                    button_label,
+                    # TODO: prefix
+                    id="switch-model-button",
                     n_clicks=0,
                 )
             )
-            if toggle_id
+            if len(models) > 1
             else DummyComponent()
         )
 
-        inputs = ComponentGroup([button, checklist, inputs_cards])
-
-        out = self.layout([inputs, self.graph])
-
-        create_button_toggler_for_view_model_update(
-            output_view=self.graph,
-            input_views=self.inputs,
-            models=self.models,
-            toggle_id=toggle_id,
+        callback = ButtonTogglerForViewModelUpdateFactory(
+            output_view=graph,
+            input_views=inputs,
+            models=models,
+            toggle_id=button.id,
             checklist=checklist,
             hideable_components=inputs_cards,
-            postproc_pred=self.postproc_pred,
+            postproc_pred=postproc_pred,
         )
 
-        return out
+        # TODO: check differences between Base and ComponentGroup here
+        inputs_ = ComponentGroup([button, checklist, inputs_cards])
+
+        super().__init__(
+            [graph, inputs_],
+            id_prefix=id_prefix,
+            layout=layout,
+            callbacks=[callback],
+        )
 
 
 class HideableComponent(IdComponent):
-    def __init__(self, id_, dash_component, id_prefix="", id_suffix=""):
-        # TODO: rename dash_component to component
+    def __init__(self, id_, component, id_prefix="", id_suffix=""):
+        # TODO: add layout?
         super().__init__(id_, id_prefix, id_suffix)
 
-        if not hasattr(dash_component, "to_dash"):
-            dash_component = AdaptedDashComponent(dash_component)
+        if not hasattr(component, "to_dash"):
+            component = AdaptedDashComponent(component)
 
-        self.component = dash_component
+        # TODO: pass id_prefix to component?
+        self.component = component
 
     def to_dash(self):
         if self._dash_component is not None:
@@ -984,6 +975,9 @@ class HideableComponent(IdComponent):
         ]
 
         return self._dash_component
+
+    def as_input(self):
+        return self.component.as_input()
 
 
 class Checklist(IdComponent):

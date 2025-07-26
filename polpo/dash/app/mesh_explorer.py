@@ -10,6 +10,7 @@ from polpo.dash.components import (
     MultiModelsMeshExplorer,
     Slider,
 )
+from polpo.dash.layout import StackInCard
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.models import (
@@ -367,7 +368,7 @@ def _create_week_inputs():
         default_value=15,
     )
 
-    return Slider(gest_week)
+    return Slider(gest_week, layout=lambda comp: dbc.Card(comp, body=True))
 
 
 def _create_hormones_inputs(hormones_ordering):
@@ -411,6 +412,7 @@ def _create_hormones_inputs(hormones_ordering):
                 label_style={"fontSize": 30, "display": "block"},
             ),
         ],
+        layout=StackInCard(gap=3),
     )
 
 

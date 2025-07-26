@@ -1,20 +1,28 @@
+from dataclasses import dataclass
+
 from dash import Input, Output, callback, ctx, html
 
 from polpo.utils import unnest_list
 
+# TODO: move postproc_pred to model?
 
-class ModelViewUpdateCallback:
-    def __init__(self, input_view, output_view, model, postproc_pred=None):
-        self.input_view = input_view
-        self.output_view = output_view
-        self.model = model
-        self.postproc_pred = postproc_pred
 
-    def create(self):
+@dataclass
+class ViewModelUpdateFactory:
+    input_view: any
+    output_view: any
+    model: any
+    postproc_pred: any = None
+    allow_duplicate: bool = False
+    prevent_initial_call: bool = False
+
+    def __call__(self):
         return create_view_model_update(
             self.input_view,
             self.output_view,
             self.model,
+            allow_duplicate=self.allow_duplicate,
+            prevent_initial_call=self.prevent_initial_call,
             postproc_pred=self.postproc_pred,
         )
 
@@ -66,6 +74,28 @@ def create_button_toggler(toggle_id, hideable_components):
         return out
 
 
+@dataclass
+class ButtonTogglerForViewModelUpdateFactory:
+    input_views: any
+    output_view: any
+    models: any
+    checklist: any
+    hideable_components: any
+    toggle_id: any = None
+    postproc_pred: any = None
+
+    def __call__(self):
+        return create_button_toggler_for_view_model_update(
+            self.input_views,
+            self.output_view,
+            self.models,
+            self.checklist,
+            self.hideable_components,
+            toggle_id=self.toggle_id,
+            postproc_pred=self.postproc_pred,
+        )
+
+
 def create_button_toggler_for_view_model_update(
     input_views,
     output_view,
@@ -92,6 +122,7 @@ def create_button_toggler_for_view_model_update(
     # NB: a simple merge of the two above to avoid chained callbacks
     empty_output = output_view.as_empty_output()
 
+    # TODO: if len?
     n_components = len(hideable_components)
 
     inputs = []
@@ -102,15 +133,10 @@ def create_button_toggler_for_view_model_update(
         inputs.extend(input_)
 
     @callback(
-        unnest_list(
-            [
-                component.as_output(component_property="style")
-                for component in hideable_components
-            ]
-        )
+        hideable_components.as_output(component_property="style")
         + output_view.as_output(),
         *(
-            ([Input(toggle_id, "n_clicks")] if toggle_id else [])
+            ([Input(toggle_id, "n_clicks")] if toggle_id is not None else [])
             + inputs
             + checklist.as_input()
         ),
