@@ -1,6 +1,7 @@
 import collections
 import inspect
 import itertools
+from functools import reduce
 
 
 def unnest_list(ls):
@@ -117,3 +118,8 @@ def nest_dict(flat_dict, sep="/"):
             break
 
     return flat_dict
+
+
+def compose_all(*funcs):
+    # e.g. f = compose_all(str, abs, int)   # f(x) = str(abs(int(x)))
+    return reduce(lambda f, g: lambda x: f(g(x)), funcs)

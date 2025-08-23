@@ -12,12 +12,10 @@ from polpo.dash.callbacks import (
 from polpo.dash.layout import (
     DummyLayout,
     GraphInputTwoColumnLayout,
-    MultiColLayout,
+    GridLayout,
     MultiRowLayout,
-    NestedLayout,
-    OneColMultiRowLayout,
-    OneTwoColLayout,
     StackInCard,
+    StackLayout,
 )
 from polpo.dash.style import STYLE as S
 from polpo.dash.variables import VarDef
@@ -28,13 +26,15 @@ from polpo.models import (
 )
 from polpo.plot.mesh import MeshPlotter
 from polpo.plot.mri import SlicePlotter
-from polpo.utils import unnest_list
+from polpo.utils import compose_all, unnest_list
 
 # TODO: review to_dash and cache
 
 # TODO: rename callbacks to callbacks_factory
 
 # TODO: properly define input-output order
+
+# TODO: check how to control fontstyle globally instead
 
 
 class Component(abc.ABC):
@@ -280,6 +280,7 @@ class RadioButton(IdComponent):
                 )
             ]
         )
+
         return self._dash_component
 
     def as_input(self):
@@ -332,6 +333,8 @@ class Slider(VarDefComponent):
 
     def __init__(self, var_def, step=1, id_prefix="", label_style=None, layout=None):
         # TODO: think more about this design
+        # TODO: does var_def really makes sense? don't think so
+        # TODO: make it has a composite component for easier control of layout?
 
         if layout is None:
             layout = DummyLayout()
@@ -435,7 +438,6 @@ class Graph(IdComponent):
         if self.graph_ is not None:
             return [self.plotter.update(self.graph_.figure, data)]
 
-        # TODO: check if behavior is not broken due to cache
         if self._dash_component is not None:
             return self._dash_component
 
@@ -445,8 +447,7 @@ class Graph(IdComponent):
             figure=self.plotter.plot(data),
             style={
                 "aspectRatio": "1",
-                "width": "25vw",
-                "height": "auto",
+                "width": "100%",
             },
         )
         self._dash_component = [self.graph_]
@@ -467,8 +468,9 @@ class Image(IdComponent):
         if layout is None:
             layout = DummyLayout()
 
+        style = {"width": "100%"}
         if style is None:
-            style = {"width": "100%"}
+            style = style.update(style)
 
         self.layout = layout
         self._image = html.Img(id=self.id_, src="", style=style)
@@ -486,18 +488,25 @@ class Image(IdComponent):
         return [""]
 
 
-class GraphRow(ComponentGroup):
-    # TODO: rename (e.g. GraphGroup) as it is now layout dependent?
-    def __init__(self, n_graphs=3, graphs=None, id_prefix="", layout=None):
-        # NB: `n_graphs`` is ignored if `graphs` is not None
+class GraphStack(ComponentGroup):
+    """A stack of graphs.
 
+    Parameters
+    ----------
+    n_graphs : int
+        Number of graphs. Ignored if ``graphs``.
+    as_col : bool
+        Whether to display graphs in columns. Ignored if ``layout``.
+    """
+
+    def __init__(self, n_graphs=3, graphs=None, id_prefix="", layout=None, as_col=True):
         if graphs is None:
             graphs = [
                 Graph(id_="plot", id_suffix=f"-{index}") for index in range(n_graphs)
             ]
 
         if layout is None:
-            layout = MultiColLayout(sm=4)
+            layout = StackLayout(as_col=as_col)
 
         super().__init__(components=graphs, id_prefix=id_prefix)
         self.layout = layout
@@ -545,10 +554,16 @@ class MriSliders(ComponentGroup):
             var_def.max_value = max_value
 
 
-class MriGraphRow(GraphRow):
-    # NB: just syntax sugar
+class MriGraphStack(GraphStack):
+    """A stack of MRI graphs.
 
-    def __init__(self, index_ordering=(0, 1, 2), layout=None):
+    Parameters
+    ----------
+    as_col : bool
+        Whether to display graphs in columns. Ignored if ``layout``.
+    """
+
+    def __init__(self, index_ordering=(0, 1, 2), layout=None, as_col=True):
         titles = ("Side View", "Front View", "Top View")
         x_labels = ("Y", "X", "X")
         y_labels = ("Z", "Z", "Y")
@@ -567,19 +582,36 @@ class MriGraphRow(GraphRow):
                 zip(titles, x_labels, y_labels)
             )
         ]
-        super().__init__(id_prefix="nii-", graphs=graphs, layout=layout)
+        super().__init__(id_prefix="nii-", graphs=graphs, layout=layout, as_col=as_col)
 
 
 class MriView(BaseComponentGroup):
+    """View of MRI data.
+
+    Displays MRI plots together with inputs for slice and (optionally) session.
+
+    Parameters
+    ----------
+    stack_session : bool
+        Whether to stack session input with slice input.
+        If ``False``, assumes ``session_input`` component is created outside.
+    as_col : bool
+        Controls both global layout and graph_stack layout. Ignored if both passed.
+    graph_first : bool
+        Whether to display graph on top/left. Ignored if ``layout``.
+    """
+
     def __init__(
         self,
         mri_data,
         session_input,
         slice_input=None,
-        graph_row=None,
+        graph_stack=None,
         id_prefix="",
-        layout=None,
         stack_session=True,
+        layout=None,
+        as_col=False,
+        graph_first=True,
     ):
         if slice_input is None:
             # TODO: update lims
@@ -618,15 +650,11 @@ class MriView(BaseComponentGroup):
                 ]
             )
 
-        if graph_row is None:
-            # NB: an output view of the brain data
-            graph_row = MriGraphRow(
-                index_ordering=list(range(len(slice_input.components)))
+        if graph_stack is None:
+            graph_stack = MriGraphStack(
+                index_ordering=list(range(len(slice_input.components))),
+                as_col=not as_col,
             )
-
-        if layout is None:
-            # TODO: rethink this layout?
-            layout = OneColMultiRowLayout()
 
         mri_input = (
             ComponentGroup([session_input, slice_input], layout=StackInCard())
@@ -634,19 +662,20 @@ class MriView(BaseComponentGroup):
             else InputGroup([session_input, slice_input])
         )
 
-        # NB: a model of the brain data
         mri_model = MriSlicesLookup(mri_data)
         graph_callback = ViewModelUpdateFactory(
             mri_input,
-            graph_row,
+            graph_stack,
             mri_model,
         )
 
         components = (
-            [graph_row, mri_input]
-            if stack_session
-            else [graph_row, session_input, slice_input]
+            [graph_stack, mri_input] if stack_session else [graph_stack, slice_input]
         )
+
+        if layout is None:
+            sorter = None if graph_first else (lambda x: list(reversed(x)))
+            layout = StackLayout(as_col=as_col, sorter=sorter)
 
         super().__init__(
             components,
@@ -657,6 +686,19 @@ class MriView(BaseComponentGroup):
 
 
 class SwitchableMriView(BaseComponentGroup):
+    """View of MRI data.
+
+    Displays MRI plot together with inputs for slice and (optionally) session.
+    Differs from ``MriView`` as only one plot is displayed at a time
+    (controlled by a radio button).
+
+    Parameters
+    ----------
+    stack_session : bool
+        Whether to stack session input with slice input.
+        If ``False``, assumes ``session_input`` component is created outside.
+    """
+
     def __init__(
         self,
         mri_data,
@@ -665,23 +707,29 @@ class SwitchableMriView(BaseComponentGroup):
         view_input=None,
         graph=None,
         id_prefix="",
-        layout=None,
         stack_session=True,
+        layout=None,
+        as_col=False,
+        graph_first=True,
     ):
         if view_input is None:
             view_input = RadioButton(
                 id_="mri-view-toggle",
                 options=[(0, "Sagittal"), (1, "Coronal"), (2, "Axial")],
-                layout=lambda comps: html.Div(
-                    [
-                        html.Span(
-                            "MRI View",
-                            style={"marginRight": "16px", "fontWeight": "bold"},
-                        ),
-                    ]
-                    + comps,
-                    style={"display": "flex", "alignItems": "center"},
-                ),
+                layout=lambda comps: [
+                    html.Div(
+                        [
+                            html.Span(
+                                "MRI View",
+                                style={"marginRight": "16px", "fontWeight": "bold"},
+                            ),
+                        ]
+                        + comps,
+                        style={
+                            "display": "flex",
+                        },
+                    )
+                ],
             )
 
         if slice_input is None:
@@ -700,21 +748,8 @@ class SwitchableMriView(BaseComponentGroup):
             )
 
         if graph is None:
-            # NB: an output view of the brain data
             graph = Graph(
                 id_="plot", plotter=SlicePlotter(title=None, x_label=None, y_label=None)
-            )
-
-        if layout is None:
-            layout = NestedLayout(
-                [
-                    OneColMultiRowLayout(),
-                    lambda comps: dbc.Col(
-                        comps,
-                        width=5,
-                        style={"overflow": "auto", "padding": "20px"},
-                    ),
-                ]
             )
 
         if stack_session:
@@ -723,20 +758,39 @@ class SwitchableMriView(BaseComponentGroup):
                 layout=StackInCard(),
             )
             mri_input = InputGroup([view_input, sliders])
-
             comps = [graph, view_input, sliders]
 
         else:
             mri_input = InputGroup([view_input, session_input, slice_input])
-            comps = [graph, view_input, session_input, slice_input]
+            comps = [graph, view_input, slice_input]
 
-        # NB: a model of the brain data
         mri_model = SwitchableMriSlicesLookup(mri_data)
         graph_callback = ViewModelUpdateFactory(
             mri_input,
             graph,
             mri_model,
         )
+
+        if layout is None:
+            if as_col:
+                sorter = lambda x: [
+                    x[0],
+                    StackLayout(as_col=False, width=("auto", None))(x[1:]),
+                ]
+                width = [6, 6]
+            else:
+                sorter = lambda x: x
+                width = [None, "auto", None]
+
+            if not graph_first:
+                perm = [1, 0] if as_col else [1, 2, 0]
+
+                width = [width[index] for index in perm]
+                _swap = lambda x: [x[index] for index in perm]
+
+                sorter = compose_all(_swap, sorter)
+
+            layout = StackLayout(as_col=as_col, width=width, sorter=sorter)
 
         super().__init__(
             comps,
@@ -747,16 +801,26 @@ class SwitchableMriView(BaseComponentGroup):
 
 
 class SessionView(BaseComponentGroup):
+    """Card with session information.
+
+    Parameters
+    ----------
+    stack_session : bool
+        Whether to stack session input with slice controller.
+        If ``False``, assumes ``session_input`` component is created outside.
+    """
+
     def __init__(
         self,
         hormones_df,
         session_input,
         session_info,
         id_prefix="",
+        stack_session=False,
         layout=None,
     ):
         if layout is None:
-            layout = OneColMultiRowLayout()
+            layout = StackLayout(as_col=False)
 
         # NB: a model of the hormones data
         session_info_model = PdDfLookup(
@@ -769,10 +833,11 @@ class SessionView(BaseComponentGroup):
         )
 
         super().__init__(
-            [session_input, session_info],
+            [session_input, session_info] if stack_session else [session_info],
             id_prefix=id_prefix,
             layout=layout,
             callbacks=[session_callback],
+            unnest=False,
         )
 
 
@@ -784,28 +849,52 @@ class MriExplorer(BaseComponentGroup):
         session_input,
         session_info,
         slice_input=None,
-        graph_row=None,
+        graph_stack=None,
         id_prefix="",
-        layout=None,
+        as_col=False,
+        graph_first=True,
     ):
         mri_view = MriView(
             mri_data,
             session_input,
             slice_input=slice_input,
-            graph_row=graph_row,
-            layout=DummyLayout(),
+            graph_stack=graph_stack,
             stack_session=True,
+            layout=DummyLayout(),
+            as_col=as_col,
         )
 
         session_view = SessionView(
-            hormones_df, session_input, session_info, layout=DummyLayout()
+            hormones_df,
+            session_input,
+            session_info,
+            stack_session=False,
+            layout=DummyLayout(),
         )
 
-        def _sorter(comps):
-            return unnest_list(comps[0] + [comps[1][1]])
+        if as_col:
+            width = [(6, 6)]
+            sorter = lambda x: [
+                [x[0][0], StackLayout(as_col=False, row_gap=5)([x[0][1], x[1][0]])]
+            ]
+        else:
+            width = [None, (8, 4)]
+            sorter = lambda x: [x[0][0], [x[0][1], x[1][0]]]
+
+        if not graph_first:
+            if as_col:
+                _swap = lambda x: [[x[0][1], x[0][0]]]
+
+            else:
+                width = list(reversed(width))
+                _swap = lambda x: [x[1], x[0]]
+
+            sorter = compose_all(_swap, sorter)
 
         super().__init__(
-            [mri_view, session_view], layout=OneTwoColLayout(sorter=_sorter)
+            [mri_view, session_view],
+            layout=GridLayout(width=width, sorter=sorter),
+            unnest=False,
         )
 
 
@@ -814,7 +903,7 @@ class ModelBasedExplorer(BaseComponentGroup):
         self, model, inputs, output, id_prefix="", postproc_pred=None, layout=None
     ):
         if layout is None:
-            layout = MultiColLayout()
+            layout = StackLayout()
 
         callback = ViewModelUpdateFactory(inputs, output, model, postproc_pred)
 
@@ -828,9 +917,22 @@ class ModelBasedExplorer(BaseComponentGroup):
 
 
 class ImageExplorer(ModelBasedExplorer):
-    def __init__(self, model, inputs, image=None, id_prefix="", layout=None):
+    def __init__(
+        self,
+        model,
+        inputs,
+        image=None,
+        id_prefix="",
+        layout=None,
+        as_col=True,
+        image_first=False,
+    ):
         if layout is None:
-            layout = MultiColLayout(sm=[6, 3], width=[900, 500])
+            if image_first:
+                sorter = lambda x: list(reversed(x))
+            else:
+                sorter = lambda x: x
+            layout = StackLayout(as_col=as_col, sorter=sorter)
 
         if image is None:
             image = Image(

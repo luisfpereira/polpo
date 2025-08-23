@@ -1,23 +1,23 @@
 import abc
 
+# TODO: add e.g. prefixed/suffixed layout?
+# TODO: do some homogenization?
+# TODO: generalize but keep syntax sugar
+# TODO: Column(s) -> Col(s)
+# TODO: take use of components layout to simplify this
+# TODO: abstract and simplify; add some error messages
 import dash_bootstrap_components as dbc
 from dash import html
 
+from polpo.utils import compose_all, is_non_string_iterable
+
+# TODO: can this not be used?
 from .style import STYLE as S
-
-# TODO: add e.g. prefixed/suffixed layout?
-
-# TODO: do some homogenization?
-# TODO: generalize but keep syntax sugar
-
-# TODO: Column(s) -> Col(s)
-
-
-# TODO: take use of components layout to simplify this
 
 
 class Layout(abc.ABC):
     def __init__(self, sorter=None):
+        # TODO: selector instead of sorter?
         if sorter is None:
             sorter = lambda x: x
         self.sorter = sorter
@@ -29,7 +29,7 @@ class Layout(abc.ABC):
 
 class DummyLayout(Layout):
     def __call__(self, comps):
-        return comps
+        return self.sorter(comps)
 
 
 class NestedLayout(Layout):
@@ -46,6 +46,7 @@ class NestedLayout(Layout):
 
 
 class SwappedTwoColumnLayout(Layout):
+    # TODO: simply add swapper
     def __call__(self, comps):
         left, right = self.sorter(comps)
 
@@ -75,76 +76,6 @@ class SwappedTwoColumnLayout(Layout):
                     "marginRight": S.margin_side,
                     "marginTop": "50px",
                 },
-            ),
-        ]
-
-
-class TwoRowLayout(Layout):
-    def __call__(self, comps):
-        top, bottom = self.sorter(comps)
-
-        row_style = {
-            "marginLeft": S.margin_side,
-            "marginRight": S.margin_side,
-            "marginTop": "50px",
-        }
-        return [
-            dbc.Row(
-                [dbc.Col(top, sm=3, width=500)],
-                align="center",
-                style=row_style,
-            ),
-            dbc.Row(
-                [
-                    dbc.Col(
-                        html.Div(
-                            bottom,
-                            style={"paddingTop": "0px"},
-                        ),
-                        sm=6,
-                        width=900,
-                    )
-                ],
-                align="center",
-                style=row_style,
-            ),
-        ]
-
-
-class SwappedTwoRowLayout(Layout):
-    def __call__(self, comps):
-        bottom, top = self.sorter(comps)
-
-        # TODO: revisit and delete comment
-        # bottom_comp = dbc.Stack(
-        #     bottom.to_dash(),
-        #     gap=3,
-        # )
-
-        row_style = {
-            "marginLeft": S.margin_side,
-            "marginRight": S.margin_side,
-            "marginTop": "50px",
-        }
-        return [
-            dbc.Row(
-                [
-                    dbc.Col(
-                        html.Div(
-                            top,
-                            style={"paddingTop": "0px"},
-                        ),
-                        sm=6,
-                        width=900,
-                    )
-                ],
-                align="center",
-                style=row_style,
-            ),
-            dbc.Row(
-                [dbc.Col(bottom, sm=3, width=500)],
-                align="center",
-                style=row_style,
             ),
         ]
 
@@ -195,6 +126,8 @@ class GraphInputTwoColumnLayout(Layout):
 
 
 class MultiRowLayout(Layout):
+    # TODO: replace by StackLayout
+
     # TODO: rename and add one for different top
     def __call__(self, comps):
         # NB: top is treated differently
@@ -238,81 +171,6 @@ class MultiRowLayout(Layout):
         ]
 
 
-class OneTwoColLayout(Layout):
-    # TODO: easy to generalize
-    def __init__(
-        self,
-        sm=(14, 7, 4),
-        width=(700, 700),
-        top_margin="10px",
-        sep_margin="10px",
-        sorter=None,
-    ):
-        # width only applies for second row
-        super().__init__(sorter=sorter)
-        self.sm = sm
-        self.width = width
-        self.top_margin = top_margin
-        self.sep_margin = sep_margin
-
-    def __call__(self, comps):
-        comps = self.sorter(comps)
-
-        first = dbc.Row(
-            [
-                dbc.Col(
-                    comps[0],
-                    sm=self.sm[0],
-                    width=sum(self.width),
-                ),
-            ],
-            align="center",
-            style={
-                "marginLeft": S.margin_side,
-                "marginRight": S.margin_side,
-                "marginTop": self.top_margin,
-            },
-        )
-
-        second_cols = [
-            dbc.Col(comp, sm=sm, width=width)
-            for comp, sm, width in zip(comps[1:], self.sm[1:], self.width)
-        ]
-        second = dbc.Row(
-            second_cols,
-            align="center",
-            style={
-                "marginLeft": S.margin_side,
-                "marginRight": S.margin_side,
-                "marginTop": self.sep_margin,
-            },
-        )
-        return [first, second]
-
-
-class OneColMultiRowLayout(Layout):
-    # TODO: homogenize with multirow layout?
-    def __init__(self, sep_margin="10px", sorter=None):
-        super().__init__(sorter=sorter)
-        self.sep_margin = sep_margin
-
-    def __call__(self, comps):
-        comps = self.sorter(comps)
-
-        return [
-            dbc.Row(
-                [dbc.Col(comp, sm=14)],
-                align="center",
-                style={
-                    "marginLeft": S.margin_side,
-                    "marginRight": S.margin_side,
-                    "marginTop": self.sep_margin,
-                },
-            )
-            for comp in comps
-        ]
-
-
 class StackInCard(Layout):
     def __init__(self, gap=3, sorter=None):
         super().__init__(sorter=sorter)
@@ -329,57 +187,118 @@ class StackInCard(Layout):
         ]
 
 
-class MultiColLayout(Layout):
+class GridLayout(Layout):
+    """Grid layout.
+
+    Parameters
+    ----------
+    width : None or str or int
+        If int, [1, 12].
+    as_stack : bool
+        Whether to wrap rows with ``dbc.Stack```. Automatically ``True`` if ``row_gap``.
+    row_gap : int
+        Gap between rows.
+    """
+
     def __init__(
         self,
-        sm=None,
         width=None,
         align="center",
+        justify="center",
         sorter=None,
-        col_style=None,
-        row_style=None,
+        as_stack=False,
+        row_gap=0,
     ):
         super().__init__(sorter=sorter)
-        if col_style is None:
-            col_style = {}
 
-        if row_style is None:
-            row_style = {}
+        if row_gap:
+            as_stack = True
 
-        self.sm = sm
         self.align = align
+        self.justify = justify
         self.width = width
+        self.as_stack = as_stack
+        self.row_gap = row_gap
 
-        self.col_style = {"padding": "20px"}.update(col_style)
-        self.row_style = {
-            "marginLeft": S.margin_side,
-            "marginRight": S.margin_side,
-            "marginTop": "50px",
-        }.update(row_style)
+    def __call__(self, row_comps):
+        row_comps = self.sorter(row_comps)
+        n_row_comps = len(row_comps)
 
-    def __call__(self, comps):
-        comps = self.sorter(comps)
+        width_ls = self.width
+        if not is_non_string_iterable(width_ls):
+            width_ls = [width_ls] * n_row_comps
 
-        sm = self.sm
-        if isinstance(sm, int) or sm is None:
-            sm = [sm] * len(comps)
-
-        width = self.width
-        if isinstance(width, int) or width is None:
-            width = [width] * len(comps)
-
-        return [
-            dbc.Row(
-                [
-                    dbc.Col(
-                        comp,
-                        sm=sm_,
-                        width=width_,
-                        style=self.col_style,
-                    )
-                    for comp, sm_, width_ in zip(comps, sm, width)
-                ],
-                align=self.align,
-                style=self.row_style,
+        if len(width_ls) != n_row_comps:
+            raise ValueError(
+                f"Must have has many row comps as width values: {n_row_comps} != {len(width_ls)}"
             )
-        ]
+
+        rows = []
+        for col_comps, width in zip(row_comps, width_ls):
+            if isinstance(col_comps, dbc.Row):
+                rows.append(col_comps)
+                continue
+
+            if not isinstance(col_comps, (list, tuple)):
+                col_comps = [col_comps]
+
+            n_col_comps = len(col_comps)
+            if not is_non_string_iterable(width):
+                width = [width] * n_col_comps
+
+            if len(width) != n_col_comps:
+                raise ValueError(
+                    f"Must have has many col comps as width values: {n_col_comps} != {len(width)}"
+                )
+            cols = [
+                dbc.Col(comp, width=width_) for comp, width_ in zip(col_comps, width)
+            ]
+            row = dbc.Row(
+                cols,
+                align=self.align,
+                justify=self.justify,
+            )
+            rows.append(row)
+
+        if self.as_stack:
+            return [dbc.Stack(rows, gap=self.row_gap)]
+
+        return rows
+
+
+class StackLayout(GridLayout):
+    """Row with multiple columns or multiple rows with one column.
+
+    Parameters
+    ----------
+    row_gap : int
+        Gap between rows. Applies if ``as_col`` is ``False``.
+    """
+
+    def __init__(
+        self,
+        width=None,
+        align="center",
+        justify="center",
+        sorter=None,
+        as_col=True,
+        row_gap=5,
+    ):
+        if as_col:
+            _row_to_col = lambda x: [x]
+            if sorter is None:
+                sorter = _row_to_col
+
+            else:
+                sorter = compose_all(_row_to_col, sorter)
+
+            width = [width]
+
+        super().__init__(
+            sorter=sorter,
+            width=width,
+            align=align,
+            justify=justify,
+            as_stack=not as_col,
+            row_gap=row_gap,
+        )
