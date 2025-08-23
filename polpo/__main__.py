@@ -47,7 +47,9 @@ def mesh_explorer(
 
 @app.command()
 def mri_explorer(
-    with_session: bool = False,
+    session_view: bool = True,
+    as_col: bool = False,
+    graph_first: bool = True,
     switchable: bool = False,
     logging_level: int = 20,
 ):
@@ -59,13 +61,13 @@ def mri_explorer(
 
     logging.basicConfig(level=logging_level)
 
-    my_app(with_session)
+    my_app(session_view, as_col, graph_first)
 
 
 @app.command()
 def image_explorer(
-    column: bool = True,
-    swapped: bool = False,
+    as_col: bool = True,
+    image_first: bool = False,
     logging_level: int = 20,
 ):
     """Launch image sequence explorer app."""
@@ -73,12 +75,11 @@ def image_explorer(
 
     logging.basicConfig(level=logging_level)
 
-    my_app(column, swapped)
+    my_app(as_col, image_first)
 
 
 @app.command()
 def multi_image_explorer(
-    swapped: bool = False,
     logging_level: int = 20,
 ):
     """Launch image sequence explorer app."""

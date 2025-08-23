@@ -69,7 +69,7 @@ def _create_session_info(session_id):
     )
 
 
-def _create_layout(with_session):
+def _create_layout(session_view, as_col, graph_first):
     mri_data = _load_mri_data()
 
     session_id = VarDef(
@@ -77,10 +77,12 @@ def _create_layout(with_session):
     )
     session_input = Slider(var_def=session_id)
 
-    if not with_session:
+    if not session_view:
         mri_view = MriView(
             mri_data,
             session_input=session_input,
+            as_col=as_col,
+            graph_first=graph_first,
         )
 
         return dbc.Container(mri_view.to_dash())
@@ -93,12 +95,14 @@ def _create_layout(with_session):
         hormone_df,
         session_input,
         session_info,
+        as_col=as_col,
+        graph_first=graph_first,
     )
 
     return dbc.Container(mri_explorer.to_dash())
 
 
-def my_app(with_session=True):
+def my_app(session_view=True, as_col=False, graph_first=True, run=True):
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",
@@ -109,7 +113,7 @@ def my_app(with_session=True):
     }
     update_style(style)
 
-    layout = _create_layout(with_session)
+    layout = _create_layout(session_view, as_col, graph_first)
 
     app = Dash(
         __name__,
@@ -119,9 +123,12 @@ def my_app(with_session=True):
 
     app.layout = layout
 
-    app.run(
-        debug=True,
-        use_reloader=False,
-        host="0.0.0.0",
-        port="8050",
-    )
+    if run:
+        app.run(
+            debug=True,
+            use_reloader=False,
+            host="0.0.0.0",
+            port="8050",
+        )
+
+    return app

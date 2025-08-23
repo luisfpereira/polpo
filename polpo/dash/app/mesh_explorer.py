@@ -54,6 +54,8 @@ from polpo.preprocessing.mri import (
 )
 from polpo.sklearn.compose import PostTransformingEstimator
 
+# TODO: simplify data loading and corresponding tests
+
 
 def _load_homornes_df():
     return Pipeline(
@@ -547,6 +549,7 @@ def my_app(
     week=True,
     hormones=True,
     colorized=False,
+    run=True,
 ):
     style = {
         "margin_side": "20px",
@@ -575,9 +578,12 @@ def my_app(
 
     app.layout = layout
 
-    app.run(
-        debug=True,
-        use_reloader=False,
-        host="0.0.0.0",
-        port="8050",
-    )
+    if run:
+        app.run(
+            debug=True,
+            use_reloader=False,
+            host="0.0.0.0",
+            port="8050",
+        )
+
+    return app

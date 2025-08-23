@@ -5,12 +5,7 @@ import dash_bootstrap_components as dbc
 from dash import Dash, get_asset_url
 
 from polpo.dash.components import ImageExplorer, Slider
-from polpo.dash.layout import (
-    MultiColLayout,
-    SwappedTwoColumnLayout,
-    SwappedTwoRowLayout,
-    TwoRowLayout,
-)
+from polpo.dash.layout import StackLayout
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.models import ListLookup
@@ -34,31 +29,26 @@ def _load_images(assets_folder):
     return [get_asset_url(image[n_path_assets + 1 :]) for image in images]
 
 
-def _create_layout(assets_folder, column=True, swapped=False):
+def _create_layout(assets_folder, as_col, image_first):
     images = _load_images(assets_folder)
 
     # TODO: do version with DictLookup
     model = ListLookup(images)
 
     digits = VarDef(id_="digitsID", name="Digits", min_value=0, max_value=9)
+    # TODO: improve slider for spacing to label when not as_col
     inputs = Slider(digits)
 
-    if column:
-        if swapped:
-            layout = SwappedTwoColumnLayout()
-        else:
-            layout = MultiColLayout()
-    else:
-        if swapped:
-            layout = SwappedTwoRowLayout()
-        else:
-            layout = TwoRowLayout()
+    image_seq_explorer = ImageExplorer(
+        model, inputs, as_col=as_col, image_first=image_first
+    )
+    if as_col:
+        return dbc.Container(image_seq_explorer.to_dash())
 
-    image_seq_explorer = ImageExplorer(model, inputs, layout=layout)
-    return dbc.Container(image_seq_explorer.to_dash())
+    return StackLayout(width=3)(image_seq_explorer.to_dash())
 
 
-def my_app(column=True, swapped=False, run=True):
+def my_app(as_col=True, image_first=False, run=True):
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",
@@ -78,7 +68,7 @@ def my_app(column=True, swapped=False, run=True):
         assets_folder=assets_folder,
     )
 
-    layout = _create_layout(assets_folder, column, swapped)
+    layout = _create_layout(assets_folder, as_col, image_first)
 
     app.layout = layout
 

@@ -10,10 +10,7 @@ from polpo.dash.components import (
     Slider,
     SwitchableMriView,
 )
-from polpo.dash.layout import (
-    MultiColLayout,
-    OneColMultiRowLayout,
-)
+from polpo.dash.layout import DummyLayout, NestedLayout, StackLayout
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.preprocessing import Map, Pipeline, Sorter, Truncater
@@ -22,6 +19,7 @@ from polpo.preprocessing.load.pregnancy import (
     PregnancyPilotMriLoader,
 )
 from polpo.preprocessing.mri import MriImageLoader
+from polpo.utils import compose_all
 
 
 def _load_homornes_df():
@@ -73,7 +71,7 @@ def _create_session_info(session_id):
     )
 
 
-def _create_layout(with_session):
+def _create_layout(session_view, as_col, graph_first):
     # session_input is in a column with session_info
     mri_data = _load_mri_data()
 
@@ -87,38 +85,57 @@ def _create_layout(with_session):
     )
     session_input = Slider(var_def=session_id)
 
-    if not with_session:
-        mri_view = SwitchableMriView(mri_data, session_input)
+    if not session_view:
+        mri_view = SwitchableMriView(
+            mri_data, session_input, as_col=as_col, graph_first=graph_first
+        )
 
-        return dbc.Container(mri_view.to_dash())
+        # TOODO: use container instead?
+        return StackLayout(width=3)(mri_view.to_dash())
 
     hormone_df = _load_homornes_df()
     session_info = _create_session_info(session_id)
 
-    def ignore_session(comps):
-        comps = comps.copy()
-        comps.pop(2)
-
-        return comps
-
     mri_view = SwitchableMriView(
         mri_data,
         session_input,
-        layout=OneColMultiRowLayout(
-            sorter=ignore_session,
-        ),
-        stack_session=False,
+        stack_session=True,
+        layout=DummyLayout(),
     )
     session_view = SessionView(hormone_df, session_input, session_info)
 
+    if as_col:
+        width = [6, 6]
+        sorter = lambda x: [
+            x[0],
+            StackLayout(as_col=False, width=("auto", None, 8))(x[1:]),
+        ]
+        container_layout = dbc.Container
+
+    else:
+        width = [8, "auto", (8, 4)]
+        sorter = lambda x: [x[0], x[1], [x[2], x[3]]]
+        container_layout = StackLayout(width=5)
+
+    if not graph_first:
+        perm = [1, 0] if as_col else [1, 2, 0]
+
+        width = [width[index] for index in perm]
+        _swap = lambda x: [x[index] for index in perm]
+
+        sorter = compose_all(_swap, sorter)
+
     mri_explorer = BaseComponentGroup(
-        [mri_view, session_view], layout=MultiColLayout(width=5, sm=None)
+        [mri_view, session_view],
+        layout=NestedLayout(
+            [StackLayout(as_col=as_col, width=width, sorter=sorter), container_layout]
+        ),
     )
 
-    return dbc.Container(mri_explorer.to_dash())
+    return mri_explorer.to_dash()
 
 
-def my_app(with_session=False):
+def my_app(session_view=True, as_col=False, graph_first=True, run=True):
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",
@@ -129,7 +146,7 @@ def my_app(with_session=False):
     }
     update_style(style)
 
-    layout = _create_layout(with_session)
+    layout = _create_layout(session_view, as_col, graph_first)
 
     app = Dash(
         __name__,
@@ -139,9 +156,12 @@ def my_app(with_session=False):
 
     app.layout = layout
 
-    app.run(
-        debug=True,
-        use_reloader=False,
-        host="0.0.0.0",
-        port="8050",
-    )
+    if run:
+        app.run(
+            debug=True,
+            use_reloader=False,
+            host="0.0.0.0",
+            port="8050",
+        )
+
+    return app

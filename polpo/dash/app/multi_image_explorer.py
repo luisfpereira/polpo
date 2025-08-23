@@ -54,7 +54,7 @@ def _create_layout(assets_folder):
     return dbc.Container(image_seq_explorer.to_dash())
 
 
-def my_app():
+def my_app(run=True):
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",
@@ -78,9 +78,12 @@ def my_app():
 
     app.layout = layout
 
-    app.run(
-        debug=True,
-        use_reloader=False,
-        host="0.0.0.0",
-        port="8050",
-    )
+    if run:
+        app.run(
+            debug=True,
+            use_reloader=False,
+            host="0.0.0.0",
+            port="8050",
+        )
+
+    return app
