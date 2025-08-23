@@ -19,19 +19,31 @@ class GoPlotter(Plotter, abc.ABC):
 
 
 class SlicePlotter(GoPlotter):
-    def __init__(self, cmap="gray", title=None, x_label=None, y_label=None):
+    def __init__(
+        self, cmap="gray", title=None, x_label=None, y_label=None, layout=None
+    ):
         self.cmap = cmap
-        self.title = title
-        self.x_label = x_label
-        self.y_label = y_label
 
-        self.layout = go.Layout(
-            title=self.title,
-            title_x=0.5,
-            xaxis=dict(title=self.x_label),
-            yaxis=dict(title=self.y_label),
-            uirevision="constant",
-        )
+        if layout is None:
+            layout = go.Layout(
+                title_x=0.5,
+                uirevision="constant",
+                margin=dict(l=20, r=20, t=40, b=20),
+            )
+
+        defaults = {
+            **({"title_text": title} if title is not None else {}),
+            **(
+                {
+                    f"{key}axis_title_text": value
+                    for key, value in [("x", x_label), ("y", y_label)]
+                    if value is not None
+                }
+            ),
+        }
+        layout.update(defaults)
+
+        self.layout = layout
 
     def transform_data(self, data):
         return [go.Heatmap(z=data.T, colorscale=self.cmap, showscale=False)]
