@@ -137,6 +137,8 @@ class StackLayout(GridLayout):
     ----------
     row_gap : int
         Gap between rows. Applies if ``as_col`` is ``False``.
+    reverse : bool
+        Whether to reverse components.
     """
 
     def __init__(
@@ -147,16 +149,17 @@ class StackLayout(GridLayout):
         sorter=None,
         as_col=True,
         row_gap=5,
+        reverse=False,
     ):
         if as_col:
             _row_to_col = lambda x: [x]
-            if sorter is None:
-                sorter = _row_to_col
-
-            else:
-                sorter = compose_all(_row_to_col, sorter)
+            sorter = compose_all(_row_to_col, sorter)
 
             width = [width]
+
+        if reverse:
+            _reversed = lambda x: list(reversed(x))
+            sorter = compose_all(sorter, _reversed)
 
         super().__init__(
             sorter=sorter,
@@ -166,3 +169,50 @@ class StackLayout(GridLayout):
             as_stack=not as_col,
             row_gap=row_gap,
         )
+
+
+class MriExplorerLayout(GridLayout):
+    def __init__(self, as_col=True, graph_first=True):
+        if as_col:
+            width = [(6, 6)]
+            sorter = lambda x: [
+                [x[0][0], StackLayout(as_col=False, row_gap=5)([x[0][1], x[1][0]])]
+            ]
+        else:
+            width = [None, (8, 4)]
+            sorter = lambda x: [x[0][0], [x[0][1], x[1][0]]]
+
+        if not graph_first:
+            if as_col:
+                _swap = lambda x: [[x[0][1], x[0][0]]]
+
+            else:
+                width = list(reversed(width))
+                _swap = lambda x: [x[1], x[0]]
+
+            sorter = compose_all(_swap, sorter)
+
+        super().__init__(width=width, sorter=sorter)
+
+
+class SwitchableMriViewLayout(StackLayout):
+    def __init__(self, as_col=False, graph_first=True):
+        if as_col:
+            sorter = lambda x: [
+                x[0],
+                StackLayout(as_col=False, width=("auto", None))(x[1:]),
+            ]
+            width = [6, 6]
+        else:
+            sorter = lambda x: x
+            width = [None, "auto", None]
+
+        if not graph_first:
+            perm = [1, 0] if as_col else [1, 2, 0]
+
+            width = [width[index] for index in perm]
+            _swap = lambda x: [x[index] for index in perm]
+
+            sorter = compose_all(_swap, sorter)
+
+        super().__init__(as_col=as_col, width=width, sorter=sorter)

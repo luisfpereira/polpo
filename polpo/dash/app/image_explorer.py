@@ -40,7 +40,9 @@ def _create_layout(assets_folder, as_col, image_first):
     inputs = Slider(digits)
 
     image_seq_explorer = ImageExplorer(
-        model, inputs, as_col=as_col, image_first=image_first
+        model,
+        inputs,
+        layout=StackLayout(as_col=as_col, reverse=not image_first),
     )
     if as_col:
         return dbc.Container(image_seq_explorer.to_dash())

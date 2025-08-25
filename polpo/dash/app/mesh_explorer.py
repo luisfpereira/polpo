@@ -1,6 +1,6 @@
 import dash_bootstrap_components as dbc
 import numpy as np
-from dash import Dash
+from dash import Dash, html
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 
@@ -534,7 +534,18 @@ def _create_layout(
     mesh_explorer = MultiModelsMeshExplorer(
         models=models,
         inputs=inputs,
-        graph=Graph(id_="mesh-plot", plotter=plotter),
+        graph=Graph(
+            id_="mesh-plot",
+            plotter=plotter,
+            layout=lambda comp: html.Div(
+                comp,
+                style={
+                    "paddingTop": "0px",
+                    "width": "100%",
+                    "maxWidth": "100%",
+                },
+            ),
+        ),
         postproc_pred=postproc_pred,
         checkbox_labels=checkbox_labels,
     )

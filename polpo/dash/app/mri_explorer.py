@@ -9,7 +9,11 @@ from polpo.dash.components import (
     MriView,
     Slider,
 )
-from polpo.dash.layout import StackInCard
+from polpo.dash.layout import (
+    MriExplorerLayout,
+    StackInCard,
+    StackLayout,
+)
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.preprocessing import Map, Pipeline, Sorter, Truncater
@@ -81,8 +85,8 @@ def _create_layout(session_view, as_col, graph_first):
         mri_view = MriView(
             mri_data,
             session_input=session_input,
-            as_col=as_col,
-            graph_first=graph_first,
+            layout=StackLayout(as_col=as_col, reverse=not graph_first),
+            graph_stack_layout=StackLayout(as_col=not as_col),
         )
 
         return dbc.Container(mri_view.to_dash())
@@ -95,8 +99,8 @@ def _create_layout(session_view, as_col, graph_first):
         hormone_df,
         session_input,
         session_info,
-        as_col=as_col,
-        graph_first=graph_first,
+        layout=MriExplorerLayout(as_col=as_col, graph_first=graph_first),
+        graph_stack_layout=StackLayout(as_col=not as_col),
     )
 
     return dbc.Container(mri_explorer.to_dash())

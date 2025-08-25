@@ -43,7 +43,7 @@ def test_mesh_explorer(dash_duo, data, hideable, overlay, week, hormones, colori
 @pytest.mark.parametrize("graph_first", [False, True])
 @pytest.mark.parametrize("as_col", [False, True])
 @pytest.mark.parametrize("session_view", [False, True])
-def test_mri_app(dash_duo, session_view, as_col, graph_first, switchable):
+def test_mri_explorer(dash_duo, session_view, as_col, graph_first, switchable):
     if not switchable:
         from polpo.dash.app.mri_explorer import my_app
     else:
@@ -55,25 +55,16 @@ def test_mri_app(dash_duo, session_view, as_col, graph_first, switchable):
     )
 
 
+@pytest.mark.parametrize("multiple", [True, False])
 @pytest.mark.parametrize("image_first", [True, False])
 @pytest.mark.parametrize("as_col", [True, False])
-def test_image_app(dash_duo, as_col, image_first):
-    from polpo.dash.app.image_explorer import my_app
+def test_image_explorer(dash_duo, as_col, image_first, multiple):
+    if not multiple:
+        from polpo.dash.app.image_explorer import my_app
+    else:
+        from polpo.dash.app.multi_image_explorer import my_app
 
     _test_app(
         dash_duo,
         my_app(as_col, image_first, run=False),
     )
-
-
-# def test_multi_image_app(dash_duo):
-#     from polpo.dash.app.multi_image_explorer import my_app
-
-#     dash_duo.start_server(my_app(run=False))
-
-#     # FIXME: because something weird with wait_for_page
-#     time.sleep(1)
-
-#     dash_duo.wait_for_page(timeout=3)
-
-#     assert dash_duo.get_logs() == [], "Browser console has errors"

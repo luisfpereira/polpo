@@ -11,9 +11,10 @@ from polpo.dash.callbacks import (
 )
 from polpo.dash.layout import (
     DummyLayout,
-    GridLayout,
+    MriExplorerLayout,
     StackInCard,
     StackLayout,
+    SwitchableMriViewLayout,
 )
 from polpo.dash.style import STYLE as S
 from polpo.dash.variables import VarDef
@@ -24,7 +25,9 @@ from polpo.models import (
 )
 from polpo.plot.mesh import MeshPlotter
 from polpo.plot.mri import SlicePlotter
-from polpo.utils import compose_all, unnest_list
+from polpo.utils import unnest_list
+
+# TODO: add general string suggesting this mostly connects callbacks with layouts
 
 # TODO: rename callbacks to callbacks_factory
 
@@ -423,14 +426,7 @@ class Graph(IdComponent):
     def __init__(self, id_, plotter=None, id_prefix="", id_suffix="", layout=None):
         # TODO: add reasonable default plotter or remove None
         if layout is None:
-            layout = lambda comp: html.Div(
-                comp,
-                style={
-                    "paddingTop": "0px",
-                    "width": "100%",
-                    "maxWidth": "100%",
-                },
-            )
+            layout = DummyLayout()
 
         super().__init__(id_, id_prefix, id_suffix)
         self.plotter = plotter
@@ -498,18 +494,16 @@ class GraphStack(ComponentGroup):
     ----------
     n_graphs : int
         Number of graphs. Ignored if ``graphs``.
-    as_col : bool
-        Whether to display graphs in columns. Ignored if ``layout``.
     """
 
-    def __init__(self, n_graphs=3, graphs=None, id_prefix="", layout=None, as_col=True):
+    def __init__(self, n_graphs=3, graphs=None, id_prefix="", layout=None):
         if graphs is None:
             graphs = [
                 Graph(id_="plot", id_suffix=f"-{index}") for index in range(n_graphs)
             ]
 
         if layout is None:
-            layout = StackLayout(as_col=as_col)
+            layout = StackLayout()
 
         super().__init__(components=graphs, id_prefix=id_prefix)
         self.layout = layout
@@ -558,15 +552,9 @@ class MriSliders(ComponentGroup):
 
 
 class MriGraphStack(GraphStack):
-    """A stack of MRI graphs.
+    """A stack of MRI graphs."""
 
-    Parameters
-    ----------
-    as_col : bool
-        Whether to display graphs in columns. Ignored if ``layout``.
-    """
-
-    def __init__(self, index_ordering=(0, 1, 2), layout=None, as_col=True):
+    def __init__(self, index_ordering=(0, 1, 2), layout=None):
         titles = ("Side View", "Front View", "Top View")
         x_labels = ("Y", "X", "X")
         y_labels = ("Z", "Z", "Y")
@@ -585,7 +573,7 @@ class MriGraphStack(GraphStack):
                 zip(titles, x_labels, y_labels)
             )
         ]
-        super().__init__(id_prefix="nii-", graphs=graphs, layout=layout, as_col=as_col)
+        super().__init__(id_prefix="nii-", graphs=graphs, layout=layout)
 
 
 class MriView(BaseComponentGroup):
@@ -598,10 +586,6 @@ class MriView(BaseComponentGroup):
     stack_session : bool
         Whether to stack session input with slice input.
         If ``False``, assumes ``session_input`` component is created outside.
-    as_col : bool
-        Controls both global layout and graph_stack layout. Ignored if both passed.
-    graph_first : bool
-        Whether to display graph on top/left. Ignored if ``layout``.
     """
 
     def __init__(
@@ -613,8 +597,7 @@ class MriView(BaseComponentGroup):
         id_prefix="",
         stack_session=True,
         layout=None,
-        as_col=False,
-        graph_first=True,
+        graph_stack_layout=None,
     ):
         if slice_input is None:
             # TODO: update lims
@@ -656,7 +639,7 @@ class MriView(BaseComponentGroup):
         if graph_stack is None:
             graph_stack = MriGraphStack(
                 index_ordering=list(range(len(slice_input.components))),
-                as_col=not as_col,
+                layout=graph_stack_layout,
             )
 
         mri_input = (
@@ -677,8 +660,7 @@ class MriView(BaseComponentGroup):
         )
 
         if layout is None:
-            sorter = None if graph_first else (lambda x: list(reversed(x)))
-            layout = StackLayout(as_col=as_col, sorter=sorter)
+            layout = StackLayout(as_col=False)
 
         super().__init__(
             components,
@@ -712,8 +694,6 @@ class SwitchableMriView(BaseComponentGroup):
         id_prefix="",
         stack_session=True,
         layout=None,
-        as_col=False,
-        graph_first=True,
     ):
         if view_input is None:
             view_input = RadioButton(
@@ -775,25 +755,7 @@ class SwitchableMriView(BaseComponentGroup):
         )
 
         if layout is None:
-            if as_col:
-                sorter = lambda x: [
-                    x[0],
-                    StackLayout(as_col=False, width=("auto", None))(x[1:]),
-                ]
-                width = [6, 6]
-            else:
-                sorter = lambda x: x
-                width = [None, "auto", None]
-
-            if not graph_first:
-                perm = [1, 0] if as_col else [1, 2, 0]
-
-                width = [width[index] for index in perm]
-                _swap = lambda x: [x[index] for index in perm]
-
-                sorter = compose_all(_swap, sorter)
-
-            layout = StackLayout(as_col=as_col, width=width, sorter=sorter)
+            layout = SwitchableMriViewLayout()
 
         super().__init__(
             comps,
@@ -854,8 +816,8 @@ class MriExplorer(BaseComponentGroup):
         slice_input=None,
         graph_stack=None,
         id_prefix="",
-        as_col=False,
-        graph_first=True,
+        layout=None,
+        graph_stack_layout=None,
     ):
         mri_view = MriView(
             mri_data,
@@ -864,7 +826,7 @@ class MriExplorer(BaseComponentGroup):
             graph_stack=graph_stack,
             stack_session=True,
             layout=DummyLayout(),
-            as_col=as_col,
+            graph_stack_layout=graph_stack_layout,
         )
 
         session_view = SessionView(
@@ -875,28 +837,12 @@ class MriExplorer(BaseComponentGroup):
             layout=DummyLayout(),
         )
 
-        if as_col:
-            width = [(6, 6)]
-            sorter = lambda x: [
-                [x[0][0], StackLayout(as_col=False, row_gap=5)([x[0][1], x[1][0]])]
-            ]
-        else:
-            width = [None, (8, 4)]
-            sorter = lambda x: [x[0][0], [x[0][1], x[1][0]]]
-
-        if not graph_first:
-            if as_col:
-                _swap = lambda x: [[x[0][1], x[0][0]]]
-
-            else:
-                width = list(reversed(width))
-                _swap = lambda x: [x[1], x[0]]
-
-            sorter = compose_all(_swap, sorter)
+        if layout is None:
+            layout = MriExplorerLayout()
 
         super().__init__(
             [mri_view, session_view],
-            layout=GridLayout(width=width, sorter=sorter),
+            layout=layout,
             unnest=False,
         )
 
@@ -927,15 +873,9 @@ class ImageExplorer(ModelBasedExplorer):
         image=None,
         id_prefix="",
         layout=None,
-        as_col=True,
-        image_first=False,
     ):
         if layout is None:
-            if image_first:
-                sorter = lambda x: list(reversed(x))
-            else:
-                sorter = lambda x: x
-            layout = StackLayout(as_col=as_col, sorter=sorter)
+            layout = StackLayout()
 
         if image is None:
             image = Image(

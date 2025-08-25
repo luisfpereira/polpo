@@ -10,6 +10,7 @@ from polpo.dash.components import (
     SharedInputModelsBasedExplorer,
     Slider,
 )
+from polpo.dash.layout import StackLayout
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.models import ListLookup
@@ -33,7 +34,7 @@ def _load_images(assets_folder):
     return [get_asset_url(image[n_path_assets + 1 :]) for image in images]
 
 
-def _create_layout(assets_folder):
+def _create_layout(assets_folder, as_col, image_first):
     images = _load_images(assets_folder)
 
     # TODO: do version with DictLookup
@@ -47,14 +48,20 @@ def _create_layout(assets_folder):
         [
             Image(id_=f"image-expl-{index}", style=image_style)
             for index in range(len(models))
-        ]
+        ],
+        layout=StackLayout(as_col=not as_col),
     )
 
-    image_seq_explorer = SharedInputModelsBasedExplorer(models, inputs, outputs)
+    image_seq_explorer = SharedInputModelsBasedExplorer(
+        models,
+        inputs,
+        outputs,
+        layout=StackLayout(as_col=as_col, reverse=image_first),
+    )
     return dbc.Container(image_seq_explorer.to_dash())
 
 
-def my_app(run=True):
+def my_app(as_col=True, image_first=False, run=True):
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",
@@ -74,7 +81,7 @@ def my_app(run=True):
         assets_folder=assets_folder,
     )
 
-    layout = _create_layout(assets_folder)
+    layout = _create_layout(assets_folder, as_col, image_first)
 
     app.layout = layout
 

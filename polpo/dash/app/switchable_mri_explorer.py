@@ -10,7 +10,12 @@ from polpo.dash.components import (
     Slider,
     SwitchableMriView,
 )
-from polpo.dash.layout import DummyLayout, NestedLayout, StackLayout
+from polpo.dash.layout import (
+    DummyLayout,
+    NestedLayout,
+    StackLayout,
+    SwitchableMriViewLayout,
+)
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.preprocessing import Map, Pipeline, Sorter, Truncater
@@ -20,6 +25,30 @@ from polpo.preprocessing.load.pregnancy import (
 )
 from polpo.preprocessing.mri import MriImageLoader
 from polpo.utils import compose_all
+
+
+class SwitchableMriLayout(StackLayout):
+    def __init__(self, as_col=False, graph_first=True):
+        if as_col:
+            width = [6, 6]
+            sorter = lambda x: [
+                x[0],
+                StackLayout(as_col=False, width=("auto", None, 8))(x[1:]),
+            ]
+
+        else:
+            width = [8, "auto", (8, 4)]
+            sorter = lambda x: [x[0], x[1], [x[2], x[3]]]
+
+        if not graph_first:
+            perm = [1, 0] if as_col else [1, 2, 0]
+
+            width = [width[index] for index in perm]
+            _swap = lambda x: [x[index] for index in perm]
+
+            sorter = compose_all(_swap, sorter)
+
+        super().__init__(as_col=as_col, width=width, sorter=sorter)
 
 
 def _load_homornes_df():
@@ -87,11 +116,12 @@ def _create_layout(session_view, as_col, graph_first):
 
     if not session_view:
         mri_view = SwitchableMriView(
-            mri_data, session_input, as_col=as_col, graph_first=graph_first
+            mri_data,
+            session_input,
+            layout=SwitchableMriViewLayout(as_col=as_col, graph_first=graph_first),
         )
 
-        # TOODO: use container instead?
-        return StackLayout(width=3)(mri_view.to_dash())
+        return StackLayout(width=5)(mri_view.to_dash())
 
     hormone_df = _load_homornes_df()
     session_info = _create_session_info(session_id)
@@ -104,32 +134,12 @@ def _create_layout(session_view, as_col, graph_first):
     )
     session_view = SessionView(hormone_df, session_input, session_info)
 
-    if as_col:
-        width = [6, 6]
-        sorter = lambda x: [
-            x[0],
-            StackLayout(as_col=False, width=("auto", None, 8))(x[1:]),
-        ]
-        container_layout = dbc.Container
-
-    else:
-        width = [8, "auto", (8, 4)]
-        sorter = lambda x: [x[0], x[1], [x[2], x[3]]]
-        container_layout = StackLayout(width=5)
-
-    if not graph_first:
-        perm = [1, 0] if as_col else [1, 2, 0]
-
-        width = [width[index] for index in perm]
-        _swap = lambda x: [x[index] for index in perm]
-
-        sorter = compose_all(_swap, sorter)
+    layout = SwitchableMriLayout(as_col=as_col, graph_first=graph_first)
+    container_layout = dbc.Container if as_col else StackLayout(width=5)
 
     mri_explorer = BaseComponentGroup(
         [mri_view, session_view],
-        layout=NestedLayout(
-            [StackLayout(as_col=as_col, width=width, sorter=sorter), container_layout]
-        ),
+        layout=NestedLayout([layout, container_layout]),
     )
 
     return mri_explorer.to_dash()

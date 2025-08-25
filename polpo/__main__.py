@@ -68,26 +68,18 @@ def mri_explorer(
 def image_explorer(
     as_col: bool = True,
     image_first: bool = False,
+    multiple: bool = False,
     logging_level: int = 20,
 ):
     """Launch image sequence explorer app."""
-    from polpo.dash.app.image_explorer import my_app
+    if not multiple:
+        from polpo.dash.app.image_explorer import my_app
+    else:
+        from polpo.dash.app.multi_image_explorer import my_app
 
     logging.basicConfig(level=logging_level)
 
     my_app(as_col, image_first)
-
-
-@app.command()
-def multi_image_explorer(
-    logging_level: int = 20,
-):
-    """Launch image sequence explorer app."""
-    from polpo.dash.app.multi_image_explorer import my_app
-
-    logging.basicConfig(level=logging_level)
-
-    my_app()
 
 
 if __name__ == "__main__":

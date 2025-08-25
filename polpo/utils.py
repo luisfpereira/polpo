@@ -122,4 +122,8 @@ def nest_dict(flat_dict, sep="/"):
 
 def compose_all(*funcs):
     # e.g. f = compose_all(str, abs, int)   # f(x) = str(abs(int(x)))
+    funcs = list(filter(lambda x: x is not None, funcs))
+    if len(funcs) == 1:
+        return funcs[0]
+
     return reduce(lambda f, g: lambda x: f(g(x)), funcs)
