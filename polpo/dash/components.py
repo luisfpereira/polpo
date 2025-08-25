@@ -11,9 +11,7 @@ from polpo.dash.callbacks import (
 )
 from polpo.dash.layout import (
     DummyLayout,
-    GraphInputTwoColumnLayout,
     GridLayout,
-    MultiRowLayout,
     StackInCard,
     StackLayout,
 )
@@ -28,13 +26,7 @@ from polpo.plot.mesh import MeshPlotter
 from polpo.plot.mri import SlicePlotter
 from polpo.utils import compose_all, unnest_list
 
-# TODO: review to_dash and cache
-
 # TODO: rename callbacks to callbacks_factory
-
-# TODO: properly define input-output order
-
-# TODO: check how to control fontstyle globally instead
 
 
 class Component(abc.ABC):
@@ -428,11 +420,22 @@ class DepVar(VarDefComponent):
 
 
 class Graph(IdComponent):
-    def __init__(self, id_, plotter=None, id_prefix="", id_suffix=""):
+    def __init__(self, id_, plotter=None, id_prefix="", id_suffix="", layout=None):
         # TODO: add reasonable default plotter or remove None
+        if layout is None:
+            layout = lambda comp: html.Div(
+                comp,
+                style={
+                    "paddingTop": "0px",
+                    "width": "100%",
+                    "maxWidth": "100%",
+                },
+            )
+
         super().__init__(id_, id_prefix, id_suffix)
         self.plotter = plotter
         self.graph_ = None
+        self.layout = layout
 
     def to_dash(self, data=None):
         if self.graph_ is not None:
@@ -450,7 +453,7 @@ class Graph(IdComponent):
                 "width": "100%",
             },
         )
-        self._dash_component = [self.graph_]
+        self._dash_component = self.layout([self.graph_])
         return self._dash_component
 
     def as_output(self, component_property=None, allow_duplicate=False):
@@ -967,10 +970,16 @@ class MeshExplorer(ModelBasedExplorer):
 
 class SharedInputModelsBasedExplorer(BaseComponentGroup):
     def __init__(
-        self, models, inputs, outputs, id_prefix="", postproc_pred=None, layout=None
+        self,
+        models,
+        inputs,
+        outputs,
+        id_prefix="",
+        postproc_pred=None,
+        layout=None,
     ):
         if layout is None:
-            layout = MultiRowLayout()
+            layout = StackLayout()
 
         callbacks = [
             ViewModelUpdateFactory(
@@ -983,7 +992,7 @@ class SharedInputModelsBasedExplorer(BaseComponentGroup):
         ]
 
         super().__init__(
-            [outputs, inputs],
+            [inputs, outputs],
             id_prefix=id_prefix,
             layout=layout,
             callbacks=callbacks,
@@ -1011,7 +1020,9 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
             graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
 
         if layout is None:
-            layout = GraphInputTwoColumnLayout()
+            # TODO: delete
+            # layout = GraphInputTwoColumnLayout()
+            layout = StackLayout()
 
         # TODO: as output_group?
         inputs_cards = BaseComponentGroup(

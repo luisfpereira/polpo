@@ -1,18 +1,8 @@
 import abc
 
-# TODO: add e.g. prefixed/suffixed layout?
-# TODO: do some homogenization?
-# TODO: generalize but keep syntax sugar
-# TODO: Column(s) -> Col(s)
-# TODO: take use of components layout to simplify this
-# TODO: abstract and simplify; add some error messages
 import dash_bootstrap_components as dbc
-from dash import html
 
 from polpo.utils import compose_all, is_non_string_iterable
-
-# TODO: can this not be used?
-from .style import STYLE as S
 
 
 class Layout(abc.ABC):
@@ -43,132 +33,6 @@ class NestedLayout(Layout):
             comps = layout(comps)
 
         return comps
-
-
-class SwappedTwoColumnLayout(Layout):
-    # TODO: simply add swapper
-    def __call__(self, comps):
-        left, right = self.sorter(comps)
-
-        # TODO: revisit and delete comment
-        # left_comp = dbc.Stack(
-        #     left.to_dash(),
-        #     gap=3,
-        # )
-
-        return [
-            dbc.Row(
-                [
-                    dbc.Col(left, sm=3, width=500),
-                    dbc.Col(sm=3, width=100),
-                    dbc.Col(
-                        html.Div(
-                            right,
-                            style={"paddingTop": "0px"},
-                        ),
-                        sm=6,
-                        width=900,
-                    ),
-                ],
-                align="center",
-                style={
-                    "marginLeft": S.margin_side,
-                    "marginRight": S.margin_side,
-                    "marginTop": "50px",
-                },
-            ),
-        ]
-
-
-class GraphInputTwoColumnLayout(Layout):
-    def __init__(self, row_align="center", sorter=None):
-        super().__init__(sorter=sorter)
-        self.row_align = row_align
-
-    def __call__(self, comps):
-        # TODO: better name than inputs?
-        graph, inputs = self.sorter(comps)
-
-        return [
-            dbc.Row(
-                [
-                    dbc.Col(
-                        html.Div(
-                            graph,
-                            style={
-                                "paddingTop": "0px",
-                                "width": "100%",  # full width of this col
-                                "maxWidth": "100%",  # prevent overflow
-                            },
-                        ),
-                        xs=12,
-                        sm=12,
-                        md=6,  # full width on small screens, half on medium+
-                        style={"padding": "10px"},
-                    ),
-                    dbc.Col(
-                        html.Div(inputs),
-                        xs=12,
-                        sm=12,
-                        md=6,  # full width on small screens, half on medium+
-                        style={"padding": "10px"},
-                    ),
-                ],
-                align=self.row_align,
-                style={
-                    "margin": "0 auto",
-                    "width": "100%",
-                    "maxWidth": "1200px",  # max total width of row
-                    "flexWrap": "wrap",  # important for responsive stacking
-                },
-            )
-        ]
-
-
-class MultiRowLayout(Layout):
-    # TODO: replace by StackLayout
-
-    # TODO: rename and add one for different top
-    def __call__(self, comps):
-        # NB: top is treated differently
-        top, other = self.sorter(comps)
-
-        top_row_style = {
-            "marginLeft": S.margin_side,
-            "marginRight": S.margin_side,
-            "marginTop": "50px",
-        }
-        row_style = {
-            "marginLeft": S.margin_side,
-            "marginRight": S.margin_side,
-        }
-        return [
-            dbc.Row(
-                [dbc.Col(top, sm=3, width=500)],
-                align="center",
-                style=top_row_style,
-            ),
-            dbc.Stack(
-                [
-                    dbc.Row(
-                        [
-                            dbc.Col(
-                                html.Div(
-                                    other_comp,
-                                    style={"paddingTop": "0px"},
-                                ),
-                                sm=6,
-                                width=900,
-                                align="center",
-                            )
-                        ],
-                        style=row_style,
-                    )
-                    for other_comp in other
-                ],
-                gap=0,
-            ),
-        ]
 
 
 class StackInCard(Layout):
