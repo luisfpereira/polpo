@@ -2,35 +2,18 @@ import os
 import sys
 
 import dash_bootstrap_components as dbc
-from dash import Dash, get_asset_url
+from dash import Dash
 
 from polpo.dash.components import ImageExplorer, Slider
 from polpo.dash.layout import StackLayout
 from polpo.dash.style import update_style
+from polpo.dash.utils import load_asset_images
 from polpo.dash.variables import VarDef
 from polpo.models import ListLookup
-from polpo.preprocessing import Sorter
-from polpo.preprocessing.path import FileFinder
-
-
-def _load_images(assets_folder):
-    # assumes assets at app folder level
-    file_path = os.path.dirname(sys.modules[__package__].__file__)
-    # removes ./
-    short_assets_folder = "/".join(assets_folder.split("/")[1:])
-
-    assets_folder_abs = os.path.join(file_path, short_assets_folder)
-
-    images = (
-        FileFinder(data_dir=os.path.join(assets_folder_abs, "digits")) + Sorter()
-    )()
-
-    n_path_assets = len(assets_folder_abs)
-    return [get_asset_url(image[n_path_assets + 1 :]) for image in images]
 
 
 def _create_layout(assets_folder, as_col, image_first):
-    images = _load_images(assets_folder)
+    images = load_asset_images(f"{assets_folder}{os.path.sep}digits")
 
     # TODO: do version with DictLookup
     model = ListLookup(images)

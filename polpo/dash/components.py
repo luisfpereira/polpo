@@ -873,18 +873,22 @@ class ImageExplorer(ModelBasedExplorer):
         image=None,
         id_prefix="",
         layout=None,
+        image_layout=None,
     ):
         if layout is None:
             layout = StackLayout()
 
         if image is None:
+            if image_layout is None:
+                image_layout = lambda comp: html.Div(
+                    comp,
+                    style={"paddingTop": "0px"},
+                )
+
             image = Image(
                 id_="image-expl",
                 id_prefix=id_prefix,
-                layout=lambda comp: html.Div(
-                    comp,
-                    style={"paddingTop": "0px"},
-                ),
+                layout=image_layout,
             )
 
         super().__init__(model, inputs, image, id_prefix=id_prefix, layout=layout)
