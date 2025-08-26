@@ -21,6 +21,7 @@ from polpo.sklearn.np import BiFlattenButFirst, BiHstack
 from polpo.sklearn.point_cloud import (
     FittableRegisteredPointCloudSmoothing,
 )
+from polpo.utils import closest
 
 
 def _to_list_with_false(obj):
@@ -64,6 +65,7 @@ class ConstantOutput(Model):
 
 
 class ListLookup(Model):
+    # TODO: rename, data can also be e.g. dict
     def __init__(self, data, tar=0):
         super().__init__()
         self.data = data
@@ -72,6 +74,23 @@ class ListLookup(Model):
     def predict(self, X):
         # NB: expects a (int,)
         return self.data[X[0] - self.tar]
+
+
+class ClosestLookupModel(Model):
+    def __init__(self, data, indices=None):
+        super().__init__()
+
+        indices = (
+            list(data.keys()) if isinstance(data, dict) else list(range(len(data)))
+        )
+
+        self.data = data
+        self.indices = indices
+
+    def predict(self, X):
+        # NB: expects a (int,)
+        index = closest(self.indices, X[0])
+        return self.data[index]
 
 
 class PdDfLookup(Model):

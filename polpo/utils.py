@@ -127,3 +127,8 @@ def compose_all(*funcs):
         return funcs[0]
 
     return reduce(lambda f, g: lambda x: f(g(x)), funcs)
+
+
+def closest(lst, value):
+    # https://www.geeksforgeeks.org/python/python-find-closest-number-to-k-in-given-list/
+    return lst[min(range(len(lst)), key=lambda i: abs(lst[i] - value))]
