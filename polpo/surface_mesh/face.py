@@ -12,7 +12,7 @@ import geomstats.backend as gs
 from polpo.utils.array import batch_slices
 
 
-def face_coordinates(vertices, faces):
+def compute_face_coordinates(vertices, faces):
     """Gather coordinates of vertices defining each face.
 
     Parameters
@@ -31,7 +31,7 @@ def face_coordinates(vertices, faces):
     return vertices[batch_slc + (faces,)]
 
 
-def face_vertices(vertices, faces):
+def compute_face_vertices(vertices, faces):
     """Return the three vertex-coordinate arrays defining each face.
 
     Parameters
@@ -55,7 +55,7 @@ def face_vertices(vertices, faces):
     Vertex ordering follows the ordering given by ``faces`` and therefore
     determines the orientation of quantities such as face normals.
     """
-    coordinates = face_coordinates(vertices, faces)
+    coordinates = compute_face_coordinates(vertices, faces)
     return (
         coordinates[..., 0, :],
         coordinates[..., 1, :],
@@ -63,7 +63,7 @@ def face_vertices(vertices, faces):
     )
 
 
-def face_centroids(vertices, faces):
+def compute_face_centroids(vertices, faces):
     """Compute face centroids.
 
     Parameters
@@ -78,10 +78,10 @@ def face_centroids(vertices, faces):
     centroids : array-like, shape=[..., n_faces, 3]
         Face centroids.
     """
-    return gs.mean(face_coordinates(vertices, faces), axis=-2)
+    return gs.mean(compute_face_coordinates(vertices, faces), axis=-2)
 
 
-def face_area_vectors(vertices, faces):
+def compute_face_area_vectors(vertices, faces):
     """Compute oriented face area vectors.
 
     Parameters
@@ -105,14 +105,14 @@ def face_area_vectors(vertices, faces):
 
     Normalizing the area vectors gives the unit face normals.
     """
-    vertex_0, vertex_1, vertex_2 = face_vertices(vertices, faces)
+    vertex_0, vertex_1, vertex_2 = compute_face_vertices(vertices, faces)
     return 0.5 * gs.cross(
         vertex_1 - vertex_0,
         vertex_2 - vertex_0,
     )
 
 
-def face_areas(vertices, faces):
+def compute_face_areas(vertices, faces):
     """Compute face areas.
 
     Parameters
@@ -127,11 +127,11 @@ def face_areas(vertices, faces):
     areas : array-like, shape=[..., n_faces]
         Face areas.
     """
-    area_vectors = face_area_vectors(vertices, faces)
+    area_vectors = compute_face_area_vectors(vertices, faces)
     return gs.linalg.norm(area_vectors, axis=-1)
 
 
-def face_normals(vertices, faces):
+def compute_face_normals(vertices, faces):
     """Compute face unit normals.
 
     Parameters
@@ -147,13 +147,13 @@ def face_normals(vertices, faces):
         Face unit normals. Their orientation is determined by the vertex
         ordering in ``faces``.
     """
-    area_vectors = face_area_vectors(vertices, faces)
+    area_vectors = compute_face_area_vectors(vertices, faces)
     areas = gs.linalg.norm(area_vectors, axis=-1)
 
     return area_vectors / gs.expand_dims(areas, axis=-1)
 
 
-def face_info(vertices, faces):
+def compute_face_info(vertices, faces):
     """Compute basic geometric information for triangular faces.
 
     Parameters
@@ -173,7 +173,7 @@ def face_info(vertices, faces):
     areas : array-like, shape=[..., n_faces]
         Face areas.
     """
-    vertex_0, vertex_1, vertex_2 = face_vertices(vertices, faces)
+    vertex_0, vertex_1, vertex_2 = compute_face_vertices(vertices, faces)
 
     centroids = (vertex_0 + vertex_1 + vertex_2) / 3
 
