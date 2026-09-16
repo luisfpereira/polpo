@@ -2,13 +2,17 @@ import os
 
 import nbformat
 import pytest
+
+# TODO: harmonize with geomstats
 from geomstats.test.parametrizers import (
-    _activate_tests_given_data,
-    _collect_all_tests,
     _exec_notebook,
+    _is_test,
     _raise_missing_testing_data,
-    _update_attrs,
+    _raise_missing_tests,
 )
+
+from ._utils import _collect_members
+from .core import TestFunction
 
 
 class NotebooksParametrizer(type):
@@ -48,37 +52,28 @@ class DataBasedParametrizer(type):
     an associated test function, instead of the opposite.
     """
 
-    # TODO: bring to geomstats
-
     def __new__(cls, name, bases, attrs):
         testing_data = locals()["attrs"].get("testing_data")
         _raise_missing_testing_data(testing_data)
 
-        test_funcs = _collect_all_tests(attrs, bases, active=False)
+        test_fncs = _collect_members(attrs, bases, _is_test)
+        data_fncs = testing_data.get_data_methods()
 
-        _activate_tests_given_data(test_funcs, testing_data)
-        if testing_data.skip_all:
-            for test_func in test_funcs.values():
-                test_func.add_mark("skip")
+        tests = {}
+        for name, func in test_fncs.items():
+            # TODO: handle vec; something like expand?
+            # TODO: add that already here?
 
-        _update_attrs(test_funcs, testing_data, attrs)
+            tests[name] = TestFunction(name, func).set_data_method(
+                data_fncs.pop(name.removeprefix("test_"), None)
+            )
 
-        # TODO: improve logic
-        testing_data.deactivate = testing_data.skip_all
-        if testing_data.deactivate:
-            return super().__new__(cls, name, bases, attrs)
+        _raise_missing_tests(data_fncs)
 
-        for func in test_funcs.values():
-            if func.active and not func.skip:
-                break
-        else:
-            testing_data.deactivate = True
+        decorators = testing_data.get_decorators()
+        for name, func in tests.items():
+            tests[name] = func.build(decorators=decorators)
+
+        attrs.update(tests)
 
         return super().__new__(cls, name, bases, attrs)
-
-
-@pytest.fixture(scope="class")
-def data_check(request):
-    testing_data = request.cls.testing_data
-    if testing_data.deactivate:
-        pytest.skip()
