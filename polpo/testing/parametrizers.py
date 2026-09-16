@@ -70,6 +70,8 @@ class DataBasedParametrizer(type):
 
         _raise_missing_tests(data_fncs)
 
+        tests = cls._expand_tests(tests, testing_data)
+
         decorators = testing_data.get_decorators()
         for name, func in tests.items():
             tests[name] = func.build(decorators=decorators)
@@ -77,3 +79,34 @@ class DataBasedParametrizer(type):
         attrs.update(tests)
 
         return super().__new__(cls, name, bases, attrs)
+
+    @classmethod
+    def _expand_tests(cls, tests, testing_data):
+        return tests
+
+
+class ManifoldDataBasedParametrizer(DataBasedParametrizer):
+    @classmethod
+    def _expand_tests(cls, tests, testing_data):
+        vec_data_fncs = testing_data.get_vectorization_data_methods()
+
+        missing_tests = []
+
+        for name, data_method in vec_data_fncs.items():
+            original_test_name = f"test_{name}"
+            test = tests.get(original_test_name)
+
+            if test is None:
+                missing_tests.append(f"{name}_vec")
+                continue
+
+            vec_test_name = f"{original_test_name}_vec"
+            tests[vec_test_name] = (
+                TestFunction(vec_test_name, test.func)
+                .set_data_method(data_method)
+                .add_mark(pytest.mark.vec)
+            )
+
+        _raise_missing_tests(missing_tests)
+
+        return tests

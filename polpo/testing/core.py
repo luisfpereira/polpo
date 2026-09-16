@@ -13,6 +13,7 @@ class TestFunction:
 
         self._test_marks = _get_pytest_marks(func)
         self._data_marks = []
+        self._marks = []
 
         spec = inspect.getfullargspec(self.func)
         self.arg_names = spec.args[1:] + spec.kwonlyargs
@@ -38,7 +39,12 @@ class TestFunction:
 
     @property
     def marks(self):
-        return self._test_marks + self._data_marks
+        return self._test_marks + self._data_marks + self._marks
+
+    def add_mark(self, mark):
+        """Add a pytest mark to the test function."""
+        self._marks.append(mark)
+        return self
 
     def build(self, decorators=()):
         test_func, default_values = _copy_func(self.func)
@@ -57,6 +63,9 @@ class TestFunction:
                 *getattr(test_func, "pytestmark", ()),
                 *self._data_marks,
             ]
+
+        for mark in self._marks:
+            test_func = mark(test_func)
 
         # TODO: should still check return?
         # no args case
