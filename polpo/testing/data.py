@@ -39,19 +39,19 @@ def _normalize_datum(datum, arg_names):
 
 
 class TestData:
-    suffix = "_test_data"
+    def _get_data_methods(self, suffix="_test_data", exclude=()):
+        if isinstance(exclude, str):
+            exclude = (exclude,)
+
+        return {
+            name.removesuffix(suffix): getattr(self, name)
+            for name in dir(self)
+            if name.endswith(suffix)
+            and not any(name.endswith(value) for value in exclude)
+        }
 
     def get_data_methods(self):
-        """Return available test-data providers indexed by vanilla test name."""
-        data = {}
-
-        for name in dir(self):
-            if not name.endswith(self.suffix):
-                continue
-
-            data[name.removesuffix(self.suffix)] = getattr(self, name)
-
-        return data
+        return self._get_data_methods()
 
     def get_decorators(self):
         return ()
@@ -164,6 +164,16 @@ class ManifoldTestData(TestData):
     def get_decorators(self):
         return [materialize_lazy_values]
 
+    def get_data_methods(self):
+        return self._get_data_methods(
+            exclude="_vec_test_data",
+        )
+
+    def get_vectorization_data_methods(self):
+        return self._get_data_methods(
+            suffix="_vec_test_data",
+        )
+
     def generate_random_data(
         self,
         arg_names,
@@ -205,7 +215,7 @@ class ManifoldTestData(TestData):
                 point_name = point_names[0]
                 dependencies.update({name: point_name for name in tangent_names})
 
-        return arg_names
+        return arg_names, dependencies
 
     def _generate_random_datum(self, arg_names, dependencies, n_points=1, **values):
         datum = dict(values)
@@ -216,13 +226,15 @@ class ManifoldTestData(TestData):
                 datum[arg_name] = LazyValue(
                     lambda base: self.data_generator.random_tangent_vec(base),
                     base,
-                    label=arg_name,
+                    label=f"n={n_points}",
                 )
             else:
                 datum[arg_name] = LazyValue(
                     lambda n=n_points: self.data_generator.random_point(n),
-                    label=f"n_points={n_points}",
+                    label=f"n={n_points}",
                 )
+
+        return datum
 
     def generate_vectorization_data(
         self,
@@ -279,6 +291,7 @@ class ManifoldTestData(TestData):
             repeat_point,
             expected_value,
             n_reps=n_reps,
+            label=f"r={n_reps}",
         )
 
         data = []
@@ -293,6 +306,7 @@ class ManifoldTestData(TestData):
                         datum[arg_name],
                         n_reps=n_reps,
                         expand=True,
+                        label=f"r={n_reps}",
                     )
 
             new_datum[expected_name] = expected_value_rep
