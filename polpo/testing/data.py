@@ -1,4 +1,5 @@
 import functools
+import inspect
 import itertools
 import random
 from collections.abc import Mapping
@@ -39,22 +40,48 @@ def _normalize_datum(datum, arg_names):
 
 
 class TestData:
-    def _get_data_methods(self, suffix="_test_data", exclude=()):
-        if isinstance(exclude, str):
-            exclude = (exclude,)
+    def __init__(self, excluded_methods=()):
+        self.excluded_methods = set(excluded_methods)
 
-        return {
-            name.removesuffix(suffix): getattr(self, name)
-            for name in dir(self)
-            if name.endswith(suffix)
-            and not any(name.endswith(value) for value in exclude)
-        }
+    def _get_data_methods(self, suffix="_test_data", excluded_suffixes=()):
+        if isinstance(excluded_suffixes, str):
+            excluded_suffixes = (excluded_suffixes,)
+
+        methods = {}
+
+        for method_name in dir(self):
+            if not method_name.endswith(suffix):
+                continue
+
+            if any(method_name.endswith(suffix_) for suffix_ in excluded_suffixes):
+                continue
+
+            name = method_name.removesuffix(suffix)
+
+            if name in self.excluded_methods:
+                continue
+
+            methods[name] = getattr(self, method_name)
+
+        return methods
 
     def get_data_methods(self):
         return self._get_data_methods()
 
     def get_decorators(self):
         return ()
+
+    def _with_values(self, datum, **values):
+        if isinstance(datum, TestDatum):
+            return TestDatum(
+                {**datum.values, **values},
+                marks=datum.marks,
+            )
+
+        return {**datum, **values}
+
+    def with_values(self, data, **values):
+        return [self._with_values(datum, **values) for datum in data]
 
 
 class _BaseLazyValue:
@@ -143,14 +170,36 @@ def materialize_lazy_values(func):
 
 
 class ManifoldTestData(TestData):
-    RANDOM_POINT_COUNTS = [1] + random.sample(range(2, 5), 1)
+    def __init__(
+        self,
+        space=None,
+        point_counts=None,
+        time_counts=None,
+        excluded_methods=(),
+    ):
+        super().__init__(excluded_methods=excluded_methods)
 
-    def __init__(self, space=None):
         self._space = None
         self.data_generator = None
 
+        self.point_counts = (
+            [1] + random.sample(range(2, 5), 1)
+            if point_counts is None
+            else point_counts
+        )
+        # TODO: might not be a ManifoldTestData attribute
+        self.time_counts = (
+            [1] + random.sample(range(2, 5), 1) if time_counts is None else time_counts
+        )
+
         if space is not None:
             self.space = space
+
+    def __add__(self, other):
+        if not isinstance(other, ManifoldTestData):
+            return NotImplemented
+
+        return CompositeManifoldTestData(self, other)
 
     @property
     def space(self):
@@ -166,7 +215,7 @@ class ManifoldTestData(TestData):
 
     def get_data_methods(self):
         return self._get_data_methods(
-            exclude="_vec_test_data",
+            excluded_suffixes="_vec_test_data",
         )
 
     def get_vectorization_data_methods(self):
@@ -185,7 +234,7 @@ class ManifoldTestData(TestData):
         arg_names, dependencies = self._resolve_arg_names(arg_names, dependencies)
 
         data = []
-        for n_points in self.RANDOM_POINT_COUNTS:
+        for n_points in self.point_counts:
             if exclude_single and n_points == 1:
                 continue
 
@@ -202,7 +251,7 @@ class ManifoldTestData(TestData):
             arg_names = (arg_names,)
 
         point_names = [name for name in arg_names if "point" in name]
-        tangent_names = [name for name in arg_names if name.startswith("tangent_vec")]
+        tangent_names = [name for name in arg_names if _is_tangent_arg(name)]
 
         ignored = set(arg_names) - set(point_names) - set(tangent_names)
         if ignored:
@@ -239,15 +288,25 @@ class ManifoldTestData(TestData):
     def generate_vectorization_data(
         self,
         arg_names,
-        op_name,
+        op_name=None,
         expected_name="expected",
-        vectorization_type="sym",
+        expected_func=None,
+        vectorization_type=None,
         dependencies=None,
         n_reps=2,
         on_metric=True,
         **values,
     ):
+        if op_name is None:
+            op_name = _get_op_name_from_caller()
+
+        if expected_func is None:
+            expected_func = lambda op, **kwargs: op(**kwargs)
+
         arg_names, dependencies = self._resolve_arg_names(arg_names, dependencies)
+        vectorization_type = _resolve_vectorization_type(
+            arg_names, dependencies, vectorization_type
+        )
 
         datum = self._generate_random_datum(
             arg_names,
@@ -256,10 +315,13 @@ class ManifoldTestData(TestData):
         )
 
         expected_value = LazyValue(
-            lambda **kwargs: getattr(
-                self.space.metric if on_metric else self.space,
-                op_name,
-            )(**kwargs),
+            lambda **kwargs: expected_func(
+                getattr(
+                    self.space.metric if on_metric else self.space,
+                    op_name,
+                ),
+                **kwargs,
+            ),
             **datum,
         )
 
@@ -314,6 +376,53 @@ class ManifoldTestData(TestData):
             data.append(new_datum)
 
         return data
+
+
+class CompositeManifoldTestData(ManifoldTestData):
+    def __init__(self, *components):
+        self.components = []
+
+        for component in components:
+            if isinstance(component, CompositeManifoldTestData):
+                self.components.extend(component.components)
+            else:
+                self.components.append(component)
+
+        self._space = None
+
+    @property
+    def space(self):
+        return self._space
+
+    @space.setter
+    def space(self, space):
+        self._space = space
+
+        for component in self.components:
+            component.space = space
+
+    def get_data_methods(self):
+        return self._merge_methods(
+            component.get_data_methods() for component in self.components
+        )
+
+    def get_vectorization_data_methods(self):
+        return self._merge_methods(
+            component.get_vectorization_data_methods() for component in self.components
+        )
+
+    @staticmethod
+    def _merge_methods(method_groups):
+        methods = {}
+
+        for group in method_groups:
+            overlap = methods.keys() & group.keys()
+            if overlap:
+                raise ValueError(f"Duplicate test data methods: {sorted(overlap)}.")
+
+            methods.update(group)
+
+        return methods
 
 
 def _get_vectorization_combinations(n_args, vectorization_type):
@@ -395,3 +504,42 @@ def _get_vectorization_combinations(n_args, vectorization_type):
             or all(combination)
         )
     ]
+
+
+def _resolve_vectorization_type(
+    arg_names,
+    dependencies,
+    vectorization_type=None,
+):
+    if vectorization_type is not None:
+        return vectorization_type
+
+    if not dependencies:
+        return "sym"
+
+    dependency_names = set(dependencies.values())
+
+    repeat_indices = [
+        index for index, name in enumerate(arg_names) if name not in dependency_names
+    ]
+
+    if len(repeat_indices) == len(arg_names):
+        return "sym"
+
+    return "repeat-" + "-".join(map(str, repeat_indices))
+
+
+def _is_tangent_arg(name):
+    return name.startswith(
+        ("tangent_vec", "vector", "vec", "initial_tangent_vec", "direction")
+    )
+
+
+def _get_op_name_from_caller():
+    caller_name = inspect.currentframe().f_back.f_back.f_code.co_name
+
+    suffix = "_vec_test_data"
+    if not caller_name.endswith(suffix):
+        raise ValueError("Cannot infer operation name from " f"{caller_name!r}.")
+
+    return caller_name.removesuffix(suffix)
