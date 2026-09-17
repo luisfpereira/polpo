@@ -169,7 +169,7 @@ def materialize_lazy_values(func):
     return wrapper
 
 
-class ManifoldTestData(TestData):
+class GeometricTestData(TestData):
     def __init__(
         self,
         space=None,
@@ -196,10 +196,10 @@ class ManifoldTestData(TestData):
             self.space = space
 
     def __add__(self, other):
-        if not isinstance(other, ManifoldTestData):
+        if not isinstance(other, GeometricTestData):
             return NotImplemented
 
-        return CompositeManifoldTestData(self, other)
+        return CompositeGeometricTestData(self, other)
 
     @property
     def space(self):
@@ -294,7 +294,7 @@ class ManifoldTestData(TestData):
         vectorization_type=None,
         dependencies=None,
         n_reps=2,
-        on_metric=True,
+        on_metric=False,
         **values,
     ):
         if op_name is None:
@@ -378,12 +378,12 @@ class ManifoldTestData(TestData):
         return data
 
 
-class CompositeManifoldTestData(ManifoldTestData):
+class CompositeGeometricTestData(GeometricTestData):
     def __init__(self, *components):
         self.components = []
 
         for component in components:
-            if isinstance(component, CompositeManifoldTestData):
+            if isinstance(component, CompositeGeometricTestData):
                 self.components.extend(component.components)
             else:
                 self.components.append(component)

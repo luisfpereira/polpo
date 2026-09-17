@@ -85,7 +85,7 @@ class DataBasedParametrizer(type):
         return tests
 
 
-class ManifoldDataBasedParametrizer(DataBasedParametrizer):
+class GeometricDataBasedParametrizer(DataBasedParametrizer):
     @classmethod
     def _expand_tests(cls, tests, testing_data):
         vec_data_fncs = testing_data.get_vectorization_data_methods()
