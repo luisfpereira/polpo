@@ -6,8 +6,8 @@ import pytest
 from polpo.ext.pyvista.surface_mesh import PvSurface
 from polpo.ext.trimesh.surface_mesh import TrimeshSurface
 from polpo.surface_mesh.core import Surface
-from polpo.surface_mesh.edge import normalize_edges
 from polpo.surface_mesh.generation.blob import create_blob
+from polpo.surface_mesh.ops.topology import normalize_edges
 from polpo.testing.data import DataCase, LazyValue
 from polpo.testing.decorators import materialize_lazy_values
 from polpo.testing.parametrizers import DataBasedParametrizer

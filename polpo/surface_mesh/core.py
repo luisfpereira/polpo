@@ -2,7 +2,8 @@
 
 import geomstats.backend as gs
 
-from polpo.surface_mesh.face import compute_face_info
+from polpo.surface_mesh.ops.face import compute_face_info
+from polpo.surface_mesh.ops.topology import compute_edges
 
 
 class VerticesFacesMixin:
@@ -43,17 +44,7 @@ class VerticesFacesMixin:
         edges : array-like, shape=(n_edges, 2)
             Indices of the vertices defining each edge.
         """
-        vind012 = gs.concatenate([self.faces[:, 0], self.faces[:, 1], self.faces[:, 2]])
-        vind120 = gs.concatenate([self.faces[:, 1], self.faces[:, 2], self.faces[:, 0]])
-        edges = gs.stack(
-            [
-                gs.concatenate([vind012, vind120]),
-                gs.concatenate([vind120, vind012]),
-            ],
-            axis=-1,
-        )
-        edges = gs.unique(edges, axis=0)
-        return edges[edges[:, 1] > edges[:, 0]]
+        return compute_edges(self.faces, unique=True, oriented=False)
 
     @property
     def edge_lengths(self):

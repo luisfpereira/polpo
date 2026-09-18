@@ -1,5 +1,37 @@
+import geomstats.backend as gs
 import numpy as np
 from scipy import sparse
+
+
+def normalize_edges(edges, return_permutation=False):
+    """Normalize the ordering of undirected mesh edges.
+
+    Each edge is first ordered by vertex index, then all edges are sorted
+    lexicographically.
+
+    Parameters
+    ----------
+    edges : array-like, shape=(n_edges, 2)
+        Vertex indices defining the mesh edges.
+    return_permutation : bool
+        Whether to also return the permutation used to sort the edges.
+
+    Returns
+    -------
+    edges : array-like, shape=(n_edges, 2)
+        Normalized and lexicographically sorted edges.
+    permutation : array-like, shape=(n_edges,)
+        Permutation used to sort the edges. Returned only when
+        ``return_permutation`` is ``True``.
+    """
+    edges = np.sort(edges, axis=1)
+    permutation = np.lexsort((edges[:, 1], edges[:, 0]))
+    edges = edges[permutation]
+
+    if return_permutation:
+        return edges, permutation
+
+    return edges
 
 
 def compute_edges(faces, *, unique=False, oriented=False):
@@ -21,7 +53,7 @@ def compute_edges(faces, *, unique=False, oriented=False):
         Vertex indices defining the mesh edges. If ``unique=False``,
         ``n_edges = 3 * n_faces``.
     """
-    edges = np.concatenate(
+    edges = gs.concatenate(
         [
             faces[:, [0, 1]],
             faces[:, [1, 2]],
@@ -29,11 +61,11 @@ def compute_edges(faces, *, unique=False, oriented=False):
         ]
     )
 
-    if oriented:
+    if not oriented:
         edges.sort(axis=1)
 
     if unique:
-        edges = np.unique(edges, axis=0)
+        edges = gs.unique(edges, axis=0)
 
     return edges
 
