@@ -15,44 +15,29 @@ from polpo.testing.parametrizers import DataBasedParametrizer
 ATOL = 1e-6
 
 
+def _make_property_test(name, atol=ATOL):
+    def test(self, surfaces):
+        values = [getattr(surface, name) for surface in surfaces]
+        self._assert_all_close(values, atol)
+
+    test.__name__ = f"test_{name}"
+    return test
+
+
 class SurfaceTestCase:
     """Test consistency across surface mesh representations."""
 
     def _assert_all_close(self, values, atol=ATOL, strict=False):
-        # NB: strict checks shape and dtype
         reference = values[0]
 
         for value in values[1:]:
             np.testing.assert_equal(reference.shape, value.shape)
-            np.testing.assert_allclose(reference, value, atol=atol, strict=strict)
-
-    def test_vertices(self, surfaces, atol=ATOL):
-        vertices = [surface.vertices for surface in surfaces]
-        self._assert_all_close(vertices, atol)
-
-    def test_faces(self, surfaces):
-        faces = [surface.faces for surface in surfaces]
-        self._assert_all_close(faces, atol=0)
-
-    def test_face_centroids(self, surfaces, atol=ATOL):
-        face_centroids = [surface.face_centroids for surface in surfaces]
-        self._assert_all_close(face_centroids, atol)
-
-    def test_face_areas(self, surfaces, atol=ATOL):
-        face_areas = [surface.face_areas for surface in surfaces]
-        self._assert_all_close(face_areas, atol)
-
-    def test_face_normals(self, surfaces, atol=ATOL):
-        face_normals = [surface.face_normals for surface in surfaces]
-        self._assert_all_close(face_normals, atol)
-
-    def test_vertex_centroid(self, surfaces, atol=ATOL):
-        vertex_centroids = [surface.vertex_centroid for surface in surfaces]
-        self._assert_all_close(vertex_centroids, atol)
-
-    def test_surface_centroid(self, surfaces, atol=ATOL):
-        surface_centroids = [surface.surface_centroid for surface in surfaces]
-        self._assert_all_close(surface_centroids, atol)
+            np.testing.assert_allclose(
+                reference,
+                value,
+                atol=atol,
+                strict=strict,
+            )
 
     def test_edges(self, surfaces):
         edges = [normalize_edges(surface.edges) for surface in surfaces]
@@ -70,9 +55,22 @@ class SurfaceTestCase:
 
         self._assert_all_close(edge_lengths, atol)
 
-    def test_bounds(self, surfaces, atol=ATOL):
-        bounds = [surface.bounds for surface in surfaces]
-        self._assert_all_close(bounds, atol=atol)
+
+for _name, _atol in {
+    "vertices": ATOL,
+    "faces": 0,
+    "face_centroids": ATOL,
+    "face_areas": ATOL,
+    "face_normals": ATOL,
+    "vertex_centroid": ATOL,
+    "surface_centroid": ATOL,
+    "bounds": ATOL,
+}.items():
+    setattr(
+        SurfaceTestCase,
+        f"test_{_name}",
+        _make_property_test(_name, _atol),
+    )
 
 
 class BlobTestData(DataCase):
