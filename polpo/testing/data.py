@@ -39,7 +39,7 @@ def _normalize_datum(datum, arg_names):
     return dict(zip(arg_names, datum))
 
 
-class TestData:
+class DataCase:
     def __init__(self, excluded_methods=()):
         self.excluded_methods = set(excluded_methods)
 
@@ -169,7 +169,7 @@ def materialize_lazy_values(func):
     return wrapper
 
 
-class GeometricTestData(TestData):
+class GeometricTestData(DataCase):
     def __init__(
         self,
         space=None,

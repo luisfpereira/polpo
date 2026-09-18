@@ -124,11 +124,11 @@ def compute_face_areas(vertices, faces):
 
     Returns
     -------
-    areas : array-like, shape=[..., n_faces]
+    areas : array-like, shape=[..., n_faces, 1]
         Face areas.
     """
     area_vectors = compute_face_area_vectors(vertices, faces)
-    return gs.linalg.norm(area_vectors, axis=-1)
+    return gs.linalg.norm(area_vectors, axis=-1, keepdims=True)
 
 
 def compute_face_normals(vertices, faces):
@@ -148,9 +148,9 @@ def compute_face_normals(vertices, faces):
         ordering in ``faces``.
     """
     area_vectors = compute_face_area_vectors(vertices, faces)
-    areas = gs.linalg.norm(area_vectors, axis=-1)
+    areas = gs.linalg.norm(area_vectors, axis=-1, keepdims=True)
 
-    return area_vectors / gs.expand_dims(areas, axis=-1)
+    return area_vectors / areas
 
 
 def compute_face_info(vertices, faces):
@@ -170,7 +170,7 @@ def compute_face_info(vertices, faces):
     normals : array-like, shape=[..., n_faces, 3]
         Unit face normals. Their orientation is determined by the vertex
         ordering in ``faces``.
-    areas : array-like, shape=[..., n_faces]
+    areas : array-like, shape=[..., n_faces, 1]
         Face areas.
     """
     vertex_0, vertex_1, vertex_2 = compute_face_vertices(vertices, faces)
@@ -181,7 +181,7 @@ def compute_face_info(vertices, faces):
         vertex_1 - vertex_0,
         vertex_2 - vertex_0,
     )
-    areas = gs.linalg.norm(area_vectors, axis=-1)
-    normals = area_vectors / gs.expand_dims(areas, axis=-1)
+    areas = gs.linalg.norm(area_vectors, axis=-1, keepdims=True)
+    normals = area_vectors / areas
 
     return centroids, normals, areas
