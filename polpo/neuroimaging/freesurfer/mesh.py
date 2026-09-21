@@ -1,6 +1,6 @@
 import nibabel
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 read = nibabel.freesurfer.read_geometry
 

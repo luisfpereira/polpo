@@ -1,15 +1,15 @@
 try:
-    from polpo.preprocessing._trimesh import TrimeshReader, TrimeshToPly  # noqa:F401
+    from polpo.pipeline._trimesh import TrimeshReader, TrimeshToPly  # noqa:F401
 except ImportError:
     pass
 
 try:
-    from polpo.preprocessing._meshio import MeshioReader, MeshioWriter  # noqa:F401
+    from polpo.pipeline._meshio import MeshioReader, MeshioWriter  # noqa:F401
 except ImportError:
     pass
 
 try:
-    from polpo.preprocessing._pyvista import PvReader, PvWriter  # noqa:F401
+    from polpo.pipeline._pyvista import PvReader, PvWriter  # noqa:F401
 except ImportError:
     pass
 
@@ -18,7 +18,7 @@ try:
 except ImportError:
     pass
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 
 class DictMeshWriter(PreprocessingStep):

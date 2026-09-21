@@ -1,6 +1,6 @@
 from sklearn.preprocessing import FunctionTransformer
 
-from polpo.preprocessing.dict import DictToValuesList, ValuesListToDict
+from polpo.pipeline.dict import DictToValuesList, ValuesListToDict
 
 
 class BiDictToValuesList(FunctionTransformer):

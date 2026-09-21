@@ -6,8 +6,8 @@ from geomstats.metric_geometry.vectorization import (
     vectorize_point,
 )
 
-from polpo.preprocessing.mesh.conversion import PvFromData
-from polpo.surface_mesh.core import PvSurface
+from polpo.ext.pyvista.surface_mesh import PvSurface
+from polpo.pipeline.mesh.conversion import PvFromData
 from polpo.transform import InvertibleTransform
 
 

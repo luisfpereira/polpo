@@ -1,6 +1,6 @@
 import numpy as np
 
-from polpo.preprocessing import PreprocessingStep
+from polpo.pipeline import PreprocessingStep
 
 
 def SubcorticalSegmentationFinder(tool="free"):

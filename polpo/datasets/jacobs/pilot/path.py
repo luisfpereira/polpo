@@ -1,11 +1,11 @@
 import re
 
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 from polpo.bids import DerSessionFolderSelector
-from polpo.preprocessing import (
+from polpo.pipeline import (
     ExceptionToWarning,
 )
-from polpo.preprocessing.str import DigitFinder
+from polpo.pipeline.str import DigitFinder
 
 
 def _session_sorter(session_id):

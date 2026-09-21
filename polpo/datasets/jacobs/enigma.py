@@ -1,9 +1,9 @@
 from pathlib import Path
 
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 from polpo.bids import DerFolderSelector
 from polpo.enigma.output import load_output
-from polpo.preprocessing import BranchingPipeline
+from polpo.pipeline import BranchingPipeline
 
 from .defaults import PILOT_PROJECT_FOLDER, PROJECT_FOLDER
 from .path import _session_sorter, _split_subject_subset

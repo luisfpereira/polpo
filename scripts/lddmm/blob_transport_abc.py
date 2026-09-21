@@ -2,7 +2,7 @@ import shutil
 import string
 
 import polpo.utils as putils
-from polpo.preprocessing.mesh.registration import RigidAlignment
+from polpo.pipeline.mesh.registration import RigidAlignment
 from polpo.surface_mesh.deformetrica import LddmmMetric, Point
 from polpo.surface_mesh.generation.blob import create_blob
 

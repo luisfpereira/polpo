@@ -10,7 +10,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
-from polpo.preprocessing import IdentityStep
+from polpo.pipeline import IdentityStep
 from polpo.sklearn.adapter import AdapterPipeline, MapTransformer
 from polpo.sklearn.base import GetParamsMixin
 from polpo.sklearn.compose import ObjectBasedTransformedTargetRegressor

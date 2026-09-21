@@ -1,9 +1,10 @@
 import polpo.utils as putils
 from polpo.distmat import PairwiseDistances
-from polpo.preprocessing.mesh.registration import RigidAlignment
-from polpo.surface_mesh.core import PvSurface
+from polpo.ext.pyvista.surface_mesh import PvSurface
+from polpo.pipeline.mesh.registration import RigidAlignment
 
 
+# TODO: fully remove
 class RigidAlignmentMixin:
     def preprocess_meshes(self, data):
         # data : polpo.dataset.Dataset

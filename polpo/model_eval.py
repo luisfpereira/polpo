@@ -5,8 +5,8 @@ import scipy
 from sklearn.metrics import r2_score
 from statsmodels.stats.multitest import multipletests
 
-from polpo.preprocessing import Map
-from polpo.preprocessing.mesh.conversion import ToVertices
+from polpo.pipeline import Map
+from polpo.pipeline.mesh.conversion import ToVertices
 from polpo.sklearn.adapter import EvaluatedModel
 from polpo.sklearn.np import FlattenButFirst
 

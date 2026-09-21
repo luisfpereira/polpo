@@ -8,8 +8,8 @@ from polpo.dash.components import Image, SharedInputModelsBasedExplorer, Slider
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.models import ListLookup
-from polpo.preprocessing import Sorter
-from polpo.preprocessing.path import FileFinder
+from polpo.pipeline import Sorter
+from polpo.pipeline.path import FileFinder
 
 
 def _load_images(assets_folder):

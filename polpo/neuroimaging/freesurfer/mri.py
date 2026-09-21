@@ -1,7 +1,7 @@
 from polpo.neuroi.mri import LabelSelector as BaseLabelSelector
 from polpo.neuroi.mri import LabelSplitter as BaseLabelSplitter
 from polpo.nibabel import MriImageLoader  # noqa: F401
-from polpo.preprocessing.path import FileFinder
+from polpo.pipeline.path import FileFinder
 
 from .naming import name_to_aseg_id
 

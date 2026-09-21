@@ -1,7 +1,7 @@
 import H2_SurfaceMatch.H2_match
 import H2_SurfaceMatch.utils.utils
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 
 class H2MeshDecimator(PreprocessingStep):

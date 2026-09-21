@@ -2,8 +2,8 @@ import re
 from pathlib import Path
 
 from polpo.bids import DerSessionFolderSelector
-from polpo.preprocessing import BranchingPipeline
-from polpo.preprocessing.str import DigitFinder
+from polpo.pipeline import BranchingPipeline
+from polpo.pipeline.str import DigitFinder
 
 from .defaults import PILOT_PROJECT_FOLDER, PROJECT_FOLDER
 from .pilot.path import FoldersSelector as PilotFoldersSelector

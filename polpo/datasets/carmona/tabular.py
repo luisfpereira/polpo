@@ -1,6 +1,6 @@
 import os
 
-import polpo.preprocessing.pd as pppd
+import polpo.pipeline.pd as pppd
 
 from .defaults import DATA_DIR
 

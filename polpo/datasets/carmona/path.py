@@ -1,4 +1,4 @@
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 from polpo.bids import DerSessionFolderSelector
 
 

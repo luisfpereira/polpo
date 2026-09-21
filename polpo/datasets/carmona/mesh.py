@@ -1,6 +1,6 @@
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 from polpo.neuroi.mesh import MeshDatasetLoader as DerMeshDatasetLoader
-from polpo.preprocessing import Constant, pipe_to_func
+from polpo.pipeline import Constant, pipe_to_func
 
 from .defaults import DATA_DIR
 from .path import FoldersSelector

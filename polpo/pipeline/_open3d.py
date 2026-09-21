@@ -1,7 +1,7 @@
 import numpy as np
 import open3d as o3d
 
-from polpo.preprocessing.base import PreprocessingStep, RegistrationStep
+from polpo.pipeline.base import PreprocessingStep, RegistrationStep
 
 
 class O3dPointCloudFromNp(PreprocessingStep):

@@ -1,7 +1,7 @@
 import dash_bootstrap_components as dbc
 from dash import Dash
 
-import polpo.preprocessing.pd as ppd
+import polpo.pipeline.pd as ppd
 from polpo.dash.components import (
     ComponentGroup,
     DepVar,
@@ -11,12 +11,12 @@ from polpo.dash.components import (
 )
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
-from polpo.preprocessing import Map, Pipeline, Sorter, Truncater
-from polpo.preprocessing.load.pregnancy import (
+from polpo.pipeline import Map, Pipeline, Sorter, Truncater
+from polpo.pipeline.load.pregnancy import (
     DenseMaternalCsvDataLoader,
     PregnancyPilotMriLoader,
 )
-from polpo.preprocessing.mri import MriImageLoader
+from polpo.pipeline.mri import MriImageLoader
 
 
 def _load_homornes_df():

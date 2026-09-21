@@ -1,4 +1,4 @@
 try:
-    from polpo.preprocessing._trimesh import TrimeshClone  # noqa:F401
+    from polpo.pipeline._trimesh import TrimeshClone  # noqa:F401
 except ImportError:
     pass

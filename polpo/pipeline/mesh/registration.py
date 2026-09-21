@@ -1,25 +1,25 @@
 import numpy as np
 
-import polpo.preprocessing.dict as ppdict
-from polpo.preprocessing._preprocessing import Map, PartiallyInitializedStep
-from polpo.preprocessing.base import PreprocessingStep
-from polpo.preprocessing.mesh.adapter import PointCloudAdapter
-from polpo.preprocessing.point_cloud.registration import (
+import polpo.pipeline.dict as ppdict
+from polpo.pipeline._preprocessing import Map, PartiallyInitializedStep
+from polpo.pipeline.base import PreprocessingStep
+from polpo.pipeline.mesh.adapter import PointCloudAdapter
+from polpo.pipeline.point_cloud.registration import (
     CorrespondenceBasedRigidAlignment,
 )
 
 try:
-    from polpo.preprocessing._pyvista import PvAlign  # noqa:F401
+    from polpo.pipeline._pyvista import PvAlign  # noqa:F401
 except ImportError:
     pass
 
 try:
-    from polpo.preprocessing._h2_surfacematch import H2MeshAligner  # noqa:F401
+    from polpo.pipeline._h2_surfacematch import H2MeshAligner  # noqa:F401
 except ImportError:
     pass
 
 try:
-    from polpo.preprocessing._skshapes import SksRigidRegistration  # noqa:F401
+    from polpo.pipeline._skshapes import SksRigidRegistration  # noqa:F401
 except ImportError:
     pass
 

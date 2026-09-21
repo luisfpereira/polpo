@@ -7,11 +7,13 @@ from datetime import datetime, timezone
 import numpy as np
 
 from polpo.dataset import Dataset, NestedDataset
-from polpo.preprocessing.mesh.registration import RigidAlignment
-from polpo.surface_mesh.core import PvSurface
+from polpo.ext.pyvista.surface_mesh import PvSurface
+from polpo.pipeline.mesh.registration import RigidAlignment
 from polpo.surface_mesh.deformetrica import FrechetMean, LddmmMetric, Point
 from polpo.surface_mesh.varifold.tuning.geometry_based import SigmaFromLengths
 from polpo.time import Timer
+
+# TODO: add restart
 
 
 class LddmmToGlobal:

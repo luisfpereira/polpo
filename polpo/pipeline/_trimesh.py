@@ -3,8 +3,8 @@ import os
 import numpy as np
 import trimesh
 
-from polpo.preprocessing.base import PreprocessingStep
-from polpo.preprocessing.mesh._register import register_vertices_attr
+from polpo.pipeline.base import PreprocessingStep
+from polpo.pipeline.mesh._register import register_vertices_attr
 
 try:
     from ._pyvista import PvReader

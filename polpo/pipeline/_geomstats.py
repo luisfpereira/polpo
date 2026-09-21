@@ -2,7 +2,7 @@ import geomstats.backend as gs
 import numpy as np
 
 from polpo.mesh.surfaces import PvSurface, Surface, TrimeshSurface
-from polpo.preprocessing.base import Pipeline, PreprocessingStep
+from polpo.pipeline.base import Pipeline, PreprocessingStep
 
 try:
     from ._pyvista import DataFromPv, PvFromData

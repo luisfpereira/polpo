@@ -1,9 +1,9 @@
 import numpy as np
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 try:
-    from polpo.preprocessing._trimesh import TrimeshMeshBounds  # noqa:F401
+    from polpo.pipeline._trimesh import TrimeshMeshBounds  # noqa:F401
 except ImportError:
     pass
 

@@ -2,7 +2,7 @@ import os
 
 import meshio
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 
 class MeshioReader(PreprocessingStep):

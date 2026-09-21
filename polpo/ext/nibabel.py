@@ -1,6 +1,6 @@
 import nibabel as nib
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 
 class MriImageLoader(PreprocessingStep):

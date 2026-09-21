@@ -1,9 +1,9 @@
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 from polpo.jacobs.path import FoldersSelector
-from polpo.preprocessing import Constant
-from polpo.preprocessing.mri import MriImageLoader
-from polpo.preprocessing.path import FileFinder, IsFileType
-from polpo.preprocessing.str import StartsWith
+from polpo.pipeline import Constant
+from polpo.pipeline.mri import MriImageLoader
+from polpo.pipeline.path import FileFinder, IsFileType
+from polpo.pipeline.str import StartsWith
 
 from .defaults import DATA_DIR
 

@@ -4,16 +4,16 @@ from pathlib import Path
 import numpy as np
 import pyvista as pv
 
-from polpo.preprocessing.base import PreprocessingStep, RegistrationStep
-from polpo.preprocessing.mesh._register import register_vertices_attr
-from polpo.pyvista.conversion import DataFromPv, PvFromData  # noqa: F401
-from polpo.pyvista.decimation import PvDecimate  # noqa: F401
-from polpo.pyvista.filter import (  # noqa: F401
+from polpo.ext.pyvista.conversion import DataFromPv, PvFromData  # noqa: F401
+from polpo.ext.pyvista.decimation import PvDecimate  # noqa: F401
+from polpo.ext.pyvista.filter import (  # noqa: F401
     PvExtractPoints,
     PvSelectSubset,
     PvSubsetSplitter,
 )
-from polpo.pyvista.io import PvReader  # noqa: F401
+from polpo.ext.pyvista.io import PvReader  # noqa: F401
+from polpo.pipeline.base import PreprocessingStep, RegistrationStep
+from polpo.pipeline.mesh._register import register_vertices_attr
 from polpo.utils import params_to_kwargs
 
 register_vertices_attr(pv.PolyData, "points")

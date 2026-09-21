@@ -1,7 +1,7 @@
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 from polpo.neuroi.mri import SubcorticalSegmentationFinder
-from polpo.preprocessing import Constant, pipe_to_func
-from polpo.preprocessing.mri import MriImageLoader
+from polpo.pipeline import Constant, pipe_to_func
+from polpo.pipeline.mri import MriImageLoader
 
 from .defaults import DATA_DIR
 from .path import FoldersSelector

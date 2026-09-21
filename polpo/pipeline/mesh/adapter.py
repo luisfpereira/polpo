@@ -1,5 +1,5 @@
-from polpo.preprocessing import IdentityStep, Map
-from polpo.preprocessing.base import Pipeline
+from polpo.pipeline import IdentityStep, Map
+from polpo.pipeline.base import Pipeline
 
 
 class PointCloudAdapter(Pipeline):
@@ -26,7 +26,7 @@ class PointCloudAdapter(Pipeline):
             points2points = IdentityStep()
 
         if data2mesh is None:
-            from polpo.preprocessing.mesh.conversion import PvFromData
+            from polpo.pipeline.mesh.conversion import PvFromData
 
             data2mesh = PvFromData()
 

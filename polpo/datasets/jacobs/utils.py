@@ -1,5 +1,5 @@
-import polpo.preprocessing.dict as ppdict
-from polpo.preprocessing import IdentityStep
+import polpo.pipeline.dict as ppdict
+from polpo.pipeline import IdentityStep
 
 from .tabular import get_key_to_birth_week, get_key_to_week
 

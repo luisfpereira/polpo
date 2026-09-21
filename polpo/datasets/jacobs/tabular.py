@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-import polpo.preprocessing.pd as ppd
+import polpo.pipeline.pd as ppd
 import polpo.utils as putils
-from polpo.preprocessing import BranchingPipeline, Constant, pipe_to_func
+from polpo.pipeline import BranchingPipeline, Constant, pipe_to_func
 
 from .defaults import DATA_DIR, PILOT_PROJECT_FOLDER, PROJECT_FOLDER
 from .pilot.tabular import SessionDataLoader as PilotSessionDataLoader

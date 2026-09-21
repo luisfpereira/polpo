@@ -1,4 +1,4 @@
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 
 class ApplyTransformation(PreprocessingStep):

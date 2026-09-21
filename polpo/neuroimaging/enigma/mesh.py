@@ -4,20 +4,20 @@ from pathlib import Path
 import numpy as np
 import pyvista as pv
 
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 import polpo.utils as putils
+from polpo.ext.pyvista.conversion import PvFromData
 from polpo.freesurfer.mesh import FreeSurferReader
-from polpo.preprocessing import Map
-from polpo.preprocessing.path import (
+from polpo.pipeline import Map
+from polpo.pipeline.path import (
     FileFinder,
     PathShortener,
 )
-from polpo.preprocessing.str import (
+from polpo.pipeline.str import (
     DigitFinder,
     EndsWithAny,
     StartsWith,
 )
-from polpo.pyvista.conversion import PvFromData
 
 from .naming import (
     aseg_id_to_name,

@@ -1,5 +1,5 @@
-import polpo.preprocessing.dict as ppdict
-from polpo.preprocessing import (
+import polpo.pipeline.dict as ppdict
+from polpo.pipeline import (
     BranchingPipeline,
     CachablePipeline,
     IdentityStep,
@@ -7,8 +7,8 @@ from polpo.preprocessing import (
     Map,
     Sorter,
 )
-from polpo.preprocessing.mesh.io import PvReader, PvWriter
-from polpo.preprocessing.path import (
+from polpo.pipeline.mesh.io import PvReader, PvWriter
+from polpo.pipeline.path import (
     FileFinder,
     IsFileType,
 )
@@ -17,22 +17,26 @@ from polpo.preprocessing.path import (
 def CacheableMeshLoader(
     cache_dir,
     pipe,
+    cache_pipe=None,
     use_cache=True,
     cache=True,
     overwrite=True,
 ):
-    # TODO: move place?
+    # TODO: move place? move to mesh io?
     # TODO: make reader and writer package agnostic?
 
     # TODO: check DictToValuesList and depth
-    cache_pipe = (
-        FileFinder(IsFileType(ext="vtk"))
-        + Sorter()
-        + ppdict.HashWithIncoming(Map(PvReader()))
-        + ppdict.DictMap(key_step=lambda x: x.rsplit("/", maxsplit=1)[1].split(".")[0])
-        + ppdict.NestDict(sep="-")
-        + ppdict.NestedDictMap(ppdict.DictToValuesList(), depth=1)
-    )
+    if cache_pipe is None:
+        cache_pipe = (
+            FileFinder(IsFileType(ext="vtk"))
+            + Sorter()
+            + ppdict.HashWithIncoming(Map(PvReader()))
+            + ppdict.DictMap(
+                key_step=lambda x: x.rsplit("/", maxsplit=1)[1].split(".")[0]
+            )
+            + ppdict.NestDict(sep="-")
+            + ppdict.NestedDictMap(ppdict.DictToValuesList(), depth=1)
+        )
 
     # TODO: update depth
     # <struct>-<participant>-<mesh-index>

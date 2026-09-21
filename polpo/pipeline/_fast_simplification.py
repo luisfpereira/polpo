@@ -2,7 +2,7 @@ import fast_simplification
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 
 class FastSimplificationDecimator(PreprocessingStep):

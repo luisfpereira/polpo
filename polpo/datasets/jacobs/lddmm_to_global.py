@@ -1,6 +1,6 @@
 import logging
 
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 from polpo.dataset import Dataset, NestedDataset, NestedKeyMap
 from polpo.jacobs.mesh import MeshDatasetLoader
 from polpo.jacobs.tabular import get_key_to_week
@@ -130,5 +130,6 @@ def find_experiment_dirs(outputs_dir, long_name=False, interleave=True):
 
 
 def get_output_week_view(source):
-    key2week_codec = NestedKeyMap.from_inner_key_map(get_key_to_week())
-    return source.decoded.with_key_map(key2week_codec)
+    # TODO: delete?
+    key_map = NestedKeyMap.from_inner_key_map(get_key_to_week())
+    return source.decoded.with_key_map(key_map)

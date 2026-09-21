@@ -1,5 +1,5 @@
 try:
-    from polpo.preprocessing._pyvista import (  # noqa:F401
+    from polpo.pipeline._pyvista import (  # noqa:F401
         PvExtractPoints,
         PvSelectSubset,
         PvSubsetSplitter,

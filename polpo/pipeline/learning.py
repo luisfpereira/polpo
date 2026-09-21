@@ -1,7 +1,7 @@
 import numpy as np
 
-import polpo.preprocessing.dict as ppdict
-from polpo.preprocessing import (
+import polpo.pipeline.dict as ppdict
+from polpo.pipeline import (
     IfCondition,
     IndexMap,
     Map,

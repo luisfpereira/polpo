@@ -1,17 +1,17 @@
 from pathlib import Path
 
-import polpo.preprocessing.dict as ppdict
-from polpo.preprocessing import (
+import polpo.pipeline.dict as ppdict
+from polpo.pipeline import (
     ContainsAll,
     FilteredGroupBy,
     Map,
 )
-from polpo.preprocessing.path import (
+from polpo.pipeline.path import (
     ExpandUser,
     FileFinder,
     PathShortener,
 )
-from polpo.preprocessing.str import RegexGroupFinder, StartsWith
+from polpo.pipeline.str import RegexGroupFinder, StartsWith
 
 # https://bids.neuroimaging.io/index.html
 

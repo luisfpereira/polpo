@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
 
 

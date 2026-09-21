@@ -3,7 +3,7 @@
 import numpy as np
 from sklearn.preprocessing import FunctionTransformer
 
-from polpo.preprocessing.np import FlattenButFirst, InvHstack, Reshape
+from polpo.pipeline.np import FlattenButFirst, InvHstack, Reshape
 
 
 class BiFlattenButFirst(FunctionTransformer):

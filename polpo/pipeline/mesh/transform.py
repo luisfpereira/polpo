@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 from ._register import VERTICES_ATTR
 

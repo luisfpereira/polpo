@@ -1,13 +1,13 @@
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 import polpo.utils as putils
-from polpo.preprocessing import Map
-from polpo.preprocessing.path import (
+from polpo.ext.pyvista.io import PvReader
+from polpo.pipeline import Map
+from polpo.pipeline.path import (
     FileFinder,
     IsFileType,
     PathShortener,
 )
-from polpo.preprocessing.str import ContainsAny
-from polpo.pyvista.io import PvReader
+from polpo.pipeline.str import ContainsAny
 
 from .naming import get_all_subcortical_structs
 from .validation import validate_structs

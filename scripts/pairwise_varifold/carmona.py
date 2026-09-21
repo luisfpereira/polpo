@@ -2,10 +2,10 @@ import json
 import logging
 from pathlib import Path
 
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 import polpo.utils as putils
-from polpo.preprocessing.load.enigma import get_all_structs
-from polpo.preprocessing.load.pregnancy.carmona import MeshLoader
+from polpo.pipeline.load.enigma import get_all_structs
+from polpo.pipeline.load.pregnancy.carmona import MeshLoader
 from polpo.protocol.pairwise_varifold import PairwiseVarifold
 
 

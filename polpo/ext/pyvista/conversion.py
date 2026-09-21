@@ -1,7 +1,7 @@
 import numpy as np
 import pyvista as pv
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 
 class PvFromData(PreprocessingStep):

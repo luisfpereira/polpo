@@ -19,8 +19,7 @@ from polpo.models import (
     Meshes2Comps,
     ObjectRegressor,
 )
-from polpo.plot.mesh import MeshesPlotter, MeshPlotter, StaticMeshPlotter
-from polpo.preprocessing import (
+from polpo.pipeline import (
     IndexMap,
     ListSqueeze,
     Map,
@@ -29,11 +28,11 @@ from polpo.preprocessing import (
     Pipeline,
     WrapInList,
 )
-from polpo.preprocessing import (
+from polpo.pipeline import (
     dict as ppdict,
 )
-from polpo.preprocessing import pd as ppd
-from polpo.preprocessing.load.pregnancy import (
+from polpo.pipeline import pd as ppd
+from polpo.pipeline.load.pregnancy import (
     DenseMaternalCsvDataLoader,
     DenseMaternalMeshLoader,
     DenseMaternalSegmentationsLoader,
@@ -41,19 +40,20 @@ from polpo.preprocessing.load.pregnancy import (
     PregnancyPilotRegisteredMeshesLoader,
     PregnancyPilotSegmentationsLoader,
 )
-from polpo.preprocessing.mesh.conversion import (
+from polpo.pipeline.mesh.conversion import (
     TrimeshFromData,
     TrimeshFromPvMesh,
 )
-from polpo.preprocessing.mesh.io import PvReader, TrimeshReader
-from polpo.preprocessing.mesh.registration import PvAlign
-from polpo.preprocessing.mesh.transform import AffineTransformation
-from polpo.preprocessing.mri import (
+from polpo.pipeline.mesh.io import PvReader, TrimeshReader
+from polpo.pipeline.mesh.registration import PvAlign
+from polpo.pipeline.mesh.transform import AffineTransformation
+from polpo.pipeline.mri import (
     LocalToTemplateTransform,
     MriImageLoader,
     SkimageMarchingCubes,
     segmtool2encoding,
 )
+from polpo.plot.mesh import MeshesPlotter, MeshPlotter, StaticMeshPlotter
 from polpo.sklearn.compose import PostTransformingEstimator
 
 

@@ -1,10 +1,12 @@
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
 from polpo.mesh.surface import PvSurface
-from polpo.preprocessing import CachablePipeline, Map
-from polpo.preprocessing.load.pregnancy.random import (
+from polpo.pipeline import CachablePipeline, Map
+from polpo.pipeline.load.pregnancy.random import (
     TwoRandomMeshesPipe as _TwoRandomMeshesPipe,
 )
-from polpo.preprocessing.mesh.io import PvReader, PvWriter
+from polpo.pipeline.mesh.io import PvReader, PvWriter
+
+# TODO: remove?!
 
 
 class TwoRandomMaternalMeshesPipe(CachablePipeline):

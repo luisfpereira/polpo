@@ -1,5 +1,5 @@
-from polpo.preprocessing import Contains
-from polpo.preprocessing.path import FileFinder, IsFileType
+from polpo.pipeline import Contains
+from polpo.pipeline.path import FileFinder, IsFileType
 
 
 def SubcorticalSegmentationFinder():

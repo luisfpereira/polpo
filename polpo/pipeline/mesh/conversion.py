@@ -4,7 +4,7 @@ import copy
 import sys
 
 try:
-    from polpo.preprocessing._trimesh import (  # noqa:F401
+    from polpo.pipeline._trimesh import (  # noqa:F401
         DataFromTrimesh,
         TrimeshFromData,
         TrimeshFromPvMesh,
@@ -13,7 +13,7 @@ except ImportError:
     pass
 
 try:
-    from polpo.preprocessing._pyvista import (  # noqa:F401
+    from polpo.pipeline._pyvista import (  # noqa:F401
         DataFromPv,
         PvFromData,
         PvFromTrimesh,
@@ -22,12 +22,12 @@ except ImportError:
     pass
 
 try:
-    from polpo.preprocessing._skshapes import PvFromSks, SksFromPv  # noqa:F401
+    from polpo.pipeline._skshapes import PvFromSks, SksFromPv  # noqa:F401
 except ImportError:
     pass
 
 try:
-    from polpo.preprocessing._geomstats import (  # noqa:F401
+    from polpo.pipeline._geomstats import (  # noqa:F401
         DataFromSurface,
         PvMeshFromSurface,
         PvSurfaceFromPvMesh,
@@ -40,12 +40,12 @@ except ImportError:
     pass
 
 try:
-    from polpo.preprocessing._meshio import MeshioFromData  # noqa:F401
+    from polpo.pipeline._meshio import MeshioFromData  # noqa:F401
 except ImportError:
     pass
 
 from polpo.macro import create_to_classes_from_from
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 from ._register import VERTICES_ATTR
 

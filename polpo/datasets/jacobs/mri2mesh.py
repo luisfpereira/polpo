@@ -1,8 +1,8 @@
-import polpo.preprocessing.dict as ppdict
+import polpo.pipeline.dict as ppdict
+from polpo.ext.pyvista.conversion import PvFromData
+from polpo.ext.pyvista.filter import PvSubsetSplitter
 from polpo.freesurfer.mri import LabelSelector, LabelSplitter
 from polpo.freesurfer.naming import aseg_id_to_name, get_all_subcortical_structs
-from polpo.pyvista.conversion import PvFromData
-from polpo.pyvista.filter import PvSubsetSplitter
 from polpo.skimage import MarchingCubes
 
 from .defaults import DATA_DIR

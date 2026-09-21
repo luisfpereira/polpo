@@ -2,8 +2,8 @@
 
 from sklearn.preprocessing import FunctionTransformer
 
-from polpo.preprocessing import Map
-from polpo.preprocessing.mesh.conversion import FromCombinatorialStructure, ToVertices
+from polpo.pipeline import Map
+from polpo.pipeline.mesh.conversion import FromCombinatorialStructure, ToVertices
 
 
 class BiMeshesToVertices(FunctionTransformer):

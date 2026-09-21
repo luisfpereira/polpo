@@ -1,6 +1,6 @@
 from sklearn.preprocessing import FunctionTransformer
 
-from polpo.preprocessing.point_cloud.smoothing import RegisteredPointCloudSmoothing
+from polpo.pipeline.point_cloud.smoothing import RegisteredPointCloudSmoothing
 
 from .base import GetParamsMixin
 

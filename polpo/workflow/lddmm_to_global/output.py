@@ -4,8 +4,8 @@ from pathlib import Path
 import pyvista as pv
 
 from polpo.dataset import Dataset, NestedDataset, NestedKeyMap
+from polpo.ext.pyvista.surface_mesh import PvSurface
 from polpo.io.json import load_json
-from polpo.surface_mesh.core import PvSurface
 from polpo.surface_mesh.deformetrica.paths import LddmmPaths
 
 from .collect import (

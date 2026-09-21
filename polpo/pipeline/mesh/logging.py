@@ -1,7 +1,7 @@
 import abc
 
 from polpo.logging import logger
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 
 
 class MessageWithPrefixMixin(abc.ABC):

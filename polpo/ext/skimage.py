@@ -1,6 +1,6 @@
 import skimage
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.pipeline.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
 
 
