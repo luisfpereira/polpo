@@ -3,7 +3,7 @@
 import geomstats.backend as gs
 import pyvista as pv
 
-from polpo.surface_mesh.core import VerticesFacesMixin
+from polpo.surface_mesh.core import Surface, VerticesFacesMixin
 
 
 class PvSurface(VerticesFacesMixin):
@@ -41,6 +41,16 @@ class PvSurface(VerticesFacesMixin):
         """
         polydata = pv.PolyData.from_regular_faces(vertices, faces)
         return cls(polydata)
+
+    def as_surface(self):
+        """Return the mesh as a ``Surface``.
+
+        Returns
+        -------
+        surface : Surface
+            Surface mesh with the same vertices and faces.
+        """
+        return Surface(self.vertices, self.faces)
 
     @property
     def vertices(self):

@@ -114,3 +114,37 @@ class Surface(VerticesFacesMixin):
             self.face_normals,
             self.face_areas,
         ) = compute_face_info(vertices, faces)
+
+    @classmethod
+    def from_polydata(cls, polydata):
+        """Create a surface from PyVista ``PolyData``.
+
+        Parameters
+        ----------
+        polydata : pyvista.PolyData
+            Triangular surface mesh.
+
+        Returns
+        -------
+        surface : Surface
+            Surface mesh with the same vertices and faces.
+        """
+        return cls(
+            vertices=gs.asarray(polydata.points),
+            faces=gs.asarray(polydata.regular_faces),
+        )
+
+    def to_polydata(self):
+        """Convert the surface to PyVista ``PolyData``.
+
+        Returns
+        -------
+        polydata : pyvista.PolyData
+            PyVista representation of the surface mesh.
+        """
+        import pyvista as pv
+
+        return pv.PolyData.from_regular_faces(
+            self.vertices,
+            self.faces,
+        )

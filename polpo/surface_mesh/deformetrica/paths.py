@@ -2,22 +2,55 @@ from pathlib import Path
 
 
 class LddmmPaths:
+    """Paths used by an LDDMM workflow.
+
+    Parameters
+    ----------
+    root : path-like
+        Root output directory.
+    meshes : path-like
+        Meshes directory.
+    registrations : path-like
+        Registrations directory.
+    transports : path-like
+        Transports directory.
+    shoots : path-like
+        Shoots directory.
+    atlases : path-like
+        Atlases directory.
+
+    Attributes
+    ----------
+    root : path-like
+        Root output directory.
+    meshes : path-like
+        Resolved meshes directory.
+    registrations : path-like
+        Resolved registrations directory.
+    transports : path-like
+        Resolved transports directory.
+    shoots : path-like
+        Resolved shoots directory.
+    atlases : path-like
+        Resolved atlases directory.
+    """
+
     def __init__(
         self,
-        outputs_dir,
-        meshes_dir=None,
-        registrations_dir=None,
-        transports_dir=None,
-        shoots_dir=None,
-        atlases_dir=None,
+        root,
+        meshes=None,
+        registrations=None,
+        transports=None,
+        shoots=None,
+        atlases=None,
     ):
-        self.outputs_dir = outputs_dir
+        self.root = root
 
-        self.meshes_dir = self._resolve(meshes_dir or "meshes")
-        self.registrations_dir = self._resolve(registrations_dir or "registrations")
-        self.transports_dir = self._resolve(transports_dir or "transports")
-        self.shoots_dir = self._resolve(shoots_dir or "shoots")
-        self.atlases_dir = self._resolve(atlases_dir or "atlases")
+        self.meshes = self._resolve(meshes or "meshes")
+        self.registrations = self._resolve(registrations or "registrations")
+        self.transports = self._resolve(transports or "transports")
+        self.shoots = self._resolve(shoots or "shoots")
+        self.atlases = self._resolve(atlases or "atlases")
 
     def _resolve(self, path):
         path = Path(path)
@@ -25,7 +58,7 @@ class LddmmPaths:
         if path.is_absolute():
             return path
 
-        return self.outputs_dir / path
+        return self.root / path
 
     def resolve(self, path):
         """Resolve a bundle-relative artifact path."""
@@ -33,32 +66,101 @@ class LddmmPaths:
 
     def relative(self, path):
         """Convert an artifact path to a bundle-relative path."""
-        return path.relative_to(self.outputs_dir)
+        return path.relative_to(self.root)
 
     def to_dict(self):
+        """Serialize relative workflow paths.
+
+        Returns
+        -------
+        data : dict
+            Serialized workflow paths relative to ``root``.
+        """
         return {
-            "meshes_dir": self.relative(self.meshes_dir).as_posix(),
-            "registrations_dir": self.relative(self.registrations_dir).as_posix(),
-            "transports_dir": self.relative(self.transports_dir).as_posix(),
-            "shoots_dir": self.relative(self.shoots_dir).as_posix(),
-            "atlases_dir": self.relative(self.atlases_dir).as_posix(),
+            "meshes": self.relative(self.meshes).as_posix(),
+            "registrations": self.relative(self.registrations).as_posix(),
+            "transports": self.relative(self.transports).as_posix(),
+            "shoots": self.relative(self.shoots).as_posix(),
+            "atlases": self.relative(self.atlases).as_posix(),
         }
 
     @classmethod
-    def from_dict(cls, outputs_dir, data):
+    def from_dict(cls, root, data):
+        """Create workflow paths from serialized data.
+
+        Parameters
+        ----------
+        root : path-like
+            Root output directory.
+        data : dict
+            Serialized workflow paths.
+
+        Returns
+        -------
+        paths : LddmmPaths
+            Deserialized workflow paths.
+        """
         return cls(
-            outputs_dir=outputs_dir,
+            root=root,
             **data,
         )
 
-    def registration_path(self, id_):
-        return self.registrations_dir / id_
+    def registration(self, id_):
+        """Return the registration directory for a point.
 
-    def transport_path(self, id_):
-        return self.transports_dir / id_
+        Parameters
+        ----------
+        id_ : str
+            Point identifier.
 
-    def shoot_path(self, id_):
-        return self.shoots_dir / id_
+        Returns
+        -------
+        path : path-like
+            Registration directory associated with the point.
+        """
+        return self.registrations / id_
 
-    def atlas_path(self, id_):
-        return self.atlases_dir / id_
+    def transport(self, id_):
+        """Return the transport directory for a point.
+
+        Parameters
+        ----------
+        id_ : str
+            Point identifier.
+
+        Returns
+        -------
+        path : path-like
+            Transport directory associated with the point.
+        """
+        return self.transports / id_
+
+    def shoot(self, id_):
+        """Return the shoot directory for a point.
+
+        Parameters
+        ----------
+        id_ : str
+            Point identifier.
+
+        Returns
+        -------
+        path : path-like
+            Shoot directory associated with the point.
+        """
+        return self.shoots / id_
+
+    def atlas(self, id_):
+        """Return the atlas directory for a point.
+
+        Parameters
+        ----------
+        id_ : str
+            Point identifier.
+
+        Returns
+        -------
+        path : path-like
+            Atlas directory associated with the point.
+        """
+        return self.atlases / id_

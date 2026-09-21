@@ -1,3 +1,4 @@
+import support.kernels as kernel_factory  # noqa: F401
 from core import default
 from support import utilities
 

@@ -1,101 +1,13 @@
 import logging
 
-import support.kernels as kernel_factory
-import torch
-from core import default
-from core.model_tools.deformations.exponential import Exponential
+from core.model_tools.deformations.exponential import Exponential  # noqa: F401
 from launch.compute_parallel_transport import (
     compute_parallel_transport,
     compute_pole_ladder,
 )
 from launch.compute_shooting import compute_shooting
-from support import utilities
-
-from polpo.deformetrica.utils import move_data
 
 logger = logging.getLogger(__name__)
-
-
-def _warn_usunused_kwargs(func_name, kwargs, unused):
-    unused_used = [arg for arg in unused if arg in kwargs]
-    if not unused_used:
-        return
-
-    msg = f"The following args are ignored by {func_name}: {', '.join(unused_used)}"
-    logger.warn(msg)
-
-
-def pole_ladder(
-    control_points,
-    momenta,
-    momenta_to_transport,
-    output_dir,
-    kernel_width=15,
-    kernel_type="torch",
-    control_points_to_transport=None,
-    concentration_of_time_points=10,
-    tmin=0,
-    tmax=1,
-    **model_parameters,
-):
-    """Compute parallel transport of a tangent vector along a geodesic with the pole ladder.
-
-    Transports a tangent vector along a geodesic (called main geodesic). Both must have been
-    estimated by using the `registration` function. The main geodesic must be estimated using RK4
-    steps. Kernel parameters should match the ones used in the registration function.
-
-    This function performs the actual parallel transport computation using pre-computed control points and momenta.
-    It takes as input the control points and momenta that define both:
-    1. The main geodesic along which to transport
-    2. The tangent vector to be transported (which also corresponds to a geodesic).
-
-    Related
-    -------
-    The estimate_parallel_transport() function provides a higher-level interface that handles the full parallel transport
-    pipeline including the registration steps needed to obtain the control points and momenta. It computes geodesics
-    between three shapes (atlas, source, target) and uses this transport() function as the final step.
-
-    Parameters
-    ----------
-    control_points: str or pathlib.Path
-        Path to the txt file that contains the initial control points for the main geodesic.
-    momenta: str or pathlib.Path
-        Path to the txt file that contains the initial momenta for the main geodesic.
-    control_points_to_transport: str or pathlib.Path
-        Path to the txt file that contains the initial control points of the deformation to
-        transport.
-    momenta_to_transport: str or pathlib.Path
-        Path to the txt file that contains the initial momenta to transport.
-    output_dir: str or pathlib.Path
-        Path to a directory where results will be saved. It will be created if it does not
-        already exist.
-    kernel_width: float
-        Width of the Gaussian kernel. Controls the spatial smoothness of the deformation and
-        influences the number of parameters required to represent the deformation.
-        Optional, default: 20.
-    kernel_type: str, {torch, keops}
-        Package to use for convolutions of velocity fields and loss functions.
-    """
-    # TODO: do wrapper function? outputs are very different
-    # NB: returns only the final transported quantities
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    transported_cp, transported_mom = compute_pole_ladder(
-        initial_control_points=control_points,
-        initial_momenta=momenta,
-        initial_momenta_to_transport=momenta_to_transport,
-        initial_control_points_to_transport=control_points_to_transport,
-        number_of_time_points=concentration_of_time_points + 1,
-        deformation_kernel_type=kernel_type,
-        deformation_kernel_width=kernel_width,
-        output_dir=output_dir,
-        tmin=tmin,
-        tmax=tmax,
-        **model_parameters,
-    )
-
-    return transported_cp, transported_mom
 
 
 def shoot(
@@ -103,50 +15,13 @@ def shoot(
     control_points,
     momenta,
     output_dir,
-    kernel_width=20.0,
-    kernel_type="torch",
-    kernel_device="cuda",
-    **model_options,
+    config,
 ):
-    """Compute geodesic.
-
-    Compute the deformation of a source shape by the flow parametrized by control points and
-    momenta.
-
-    Parameters
-    ----------
-    source: str or pathlib.Path
-        Path to the vtk file that contains the source mesh.
-    control_points: str or pathlib.Path
-        Path to the txt file that contains the initial control points.
-    momenta: str or pathlib.Path
-        Path to the txt file that contains the initial momenta.
-    kernel_width: float
-        Width of the Gaussian kernel. Controls the spatial smoothness of the deformation and
-        influences the number of parameters required to represent the deformation.
-        Optional, default: 20.
-    kernel_type: str, {torch, keops}
-        Package to use for convolutions of velocity fields and loss functions.
-    kernel_device: str, {cuda, cpu}
-    """
-    # cp, momenta, meshes (cp and momenta writing controlled by write_adjoint_parameters)
-    # allows for multiple momenta
-    # filenames as int, i.e. connection to ids is lost
-
-    _warn_usunused_kwargs(
-        "shoot",
-        model_options,
-        unused=(
-            "tensor_integer_type",
-            "deformation_kernel_device",
-            "number_of_time_points",
-        ),
-    )
-
+    """Shoot a geodesic deformation."""
     template_specifications = {
         "shape": {
             "deformable_object_type": "SurfaceMesh",
-            "noise_std": -1,  # not used
+            "noise_std": -1,
             "filename": source,
         }
     }
@@ -157,33 +32,103 @@ def shoot(
         template_specifications,
         initial_control_points=control_points,
         initial_momenta=momenta,
-        deformation_kernel_width=kernel_width,
-        deformation_kernel_type=kernel_type,
         output_dir=output_dir,
-        **model_options,
+        **config.to_kwargs(),
     )
 
 
-def parallel_transport_fanning(
+def _parallel_transport_pole_ladder(
+    control_points,
+    momenta,
+    momenta_to_transport,
+    output_dir,
+    config,
+    control_points_to_transport=None,
+):
+    """Parallel transport momenta using the pole-ladder scheme.
+
+    The reference geodesic is defined by ``control_points`` and ``momenta``.
+    The momentum ``momenta_to_transport`` is transported along this geodesic
+    using Deformetrica's pole-ladder implementation.
+
+    Parameters
+    ----------
+    control_points : path-like
+        Path to the initial control points defining the reference geodesic.
+    momenta : path-like
+        Path to the initial momenta defining the reference geodesic.
+    momenta_to_transport : path-like
+        Path to the initial momenta to transport.
+    output_dir : path-like
+        Directory where Deformetrica outputs are written.
+    config : ParallelTransportConfig
+        Parallel transport configuration.
+    control_points_to_transport : path-like
+        Path to the control points associated with the momenta to transport.
+
+    Returns
+    -------
+    transported_control_points : array-like
+        Control points at the end of the transport.
+    transported_momenta : array-like
+        Transported momenta.
+    """
+    # NB: returns only the final transported quantities
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    transported_cp, transported_mom = compute_pole_ladder(
+        initial_control_points=control_points,
+        initial_momenta=momenta,
+        initial_momenta_to_transport=momenta_to_transport,
+        initial_control_points_to_transport=control_points_to_transport,
+        output_dir=output_dir,
+        tmin=0,
+        tmax=1,
+        **config.to_kwargs(),
+    )
+
+    return transported_cp, transported_mom
+
+
+def _parallel_transport_fanning(
     source,
     control_points,
     momenta,
     momenta_to_transport,
     output_dir,
-    kernel_width=1.0,
+    config,
     control_points_to_transport=None,
-    kernel_type="torch",
-    kernel_device="cuda",
-    tmin=0.0,
-    tmax=1.0,
-    **model_options,
 ):
-    _warn_usunused_kwargs(
-        "parallel_transport",
-        model_options,
-        unused=("tensor_integer_type",),
-    )
+    """Parallel transport momenta using the fanning scheme.
 
+    The reference geodesic is defined by ``control_points`` and ``momenta``.
+    The momentum ``momenta_to_transport`` is transported along this geodesic
+    using Deformetrica's parallel transport implementation. The source surface
+    is flowed along the resulting deformation.
+
+    Parameters
+    ----------
+    source : path-like
+        Path to the source surface.
+    control_points : path-like
+        Path to the initial control points defining the reference geodesic.
+    momenta : path-like
+        Path to the initial momenta defining the reference geodesic.
+    momenta_to_transport : path-like
+        Path to the initial momenta to transport.
+    output_dir : pathlib.Path
+        Directory where Deformetrica outputs are written.
+    config : ParallelTransportConfig
+        Parallel transport configuration.
+    control_points_to_transport : str or pathlib.Path
+        Path to the control points associated with the momenta to transport.
+
+    Returns
+    -------
+    result
+        Output returned by Deformetrica's fanning parallel transport routine.
+    """
     template_specifications = {
         "shape": {
             "deformable_object_type": "SurfaceMesh",
@@ -197,15 +142,13 @@ def parallel_transport_fanning(
     return compute_parallel_transport(
         template_specifications,
         output_dir=output_dir,
-        deformation_kernel_width=kernel_width,
         initial_control_points=control_points,
         initial_momenta=momenta,
         initial_momenta_to_transport=momenta_to_transport,
         initial_control_points_to_transport=control_points_to_transport,
-        deformation_kernel_type=kernel_type,
-        tmin=tmin,
-        tmax=tmax,
-        **model_options,
+        tmin=0,
+        tmax=1,
+        **config.to_kwargs(),
     )
 
 
@@ -214,90 +157,64 @@ def parallel_transport(
     momenta,
     momenta_to_transport,
     output_dir,
+    config,
     source=None,
-    kernel_width=1.0,
     control_points_to_transport=None,
-    kernel_type="torch",
-    use_pole_ladder=False,
-    **model_options,
 ):
-    if use_pole_ladder:
-        if source is not None:
-            logger.warn("source is ignored when pole ladder is used")
+    """Parallel transport momenta along an LDDMM geodesic.
 
-        return pole_ladder(
+    The transport method is selected from ``config``. Pole ladder transports
+    the momenta directly, while fanning additionally requires a source surface.
+
+    Parameters
+    ----------
+    control_points : path-like
+        Path to the initial control points defining the reference geodesic.
+    momenta : path-like
+        Path to the initial momenta defining the reference geodesic.
+    momenta_to_transport : path-like
+        Path to the initial momenta to transport.
+    output_dir : path-like
+        Directory where Deformetrica outputs are written.
+    config : ParallelTransportConfig
+        Configuration defining the transport method and its parameters.
+    source : path-like
+        Path to the source surface required by the fanning scheme.
+    control_points_to_transport : path-like
+        Path to the control points associated with the momenta to transport.
+
+    Returns
+    -------
+    result
+        Result produced by the selected parallel transport method.
+
+    Raises
+    ------
+    ValueError
+        If fanning transport is selected without a source surface.
+    """
+    if config.method == "pole_ladder":
+        if source is not None:
+            logger.warning("source is ignored when pole ladder is used")
+
+        return _parallel_transport_pole_ladder(
             control_points,
             momenta,
             momenta_to_transport,
             output_dir,
-            kernel_width=kernel_width,
+            config,
             control_points_to_transport=control_points_to_transport,
-            kernel_type=kernel_type,
-            **model_options,
         )
 
     if source is None:
         raise ValueError("source needs to be defined to use the fanning scheme.")
 
-    return parallel_transport_fanning(
+    return _parallel_transport_fanning(
         source,
         control_points,
         momenta,
         momenta_to_transport,
         output_dir,
-        kernel_width=kernel_width,
+        config,
         control_points_to_transport=control_points_to_transport,
-        kernel_type=kernel_type,
-        **model_options,
     )
-
-
-def flow(
-    base_point,
-    control_points_t,
-    momenta_t,
-    kernel_width=20.0,
-    kernel_type="torch",
-    use_rk2_for_flow=False,
-    use_rk2_for_shoot=False,
-):
-    # NB: not working!
-    # flow source along trajectory
-    # mostly for debugging and understanding
-    # just a hack
-
-    deformation_kernel = kernel_factory.factory(
-        kernel_type,
-        kernel_width=kernel_width,
-    )
-    exponential = Exponential(
-        kernel=deformation_kernel,
-        use_rk2_for_shoot=use_rk2_for_shoot,
-        use_rk2_for_flow=use_rk2_for_flow,
-    )
-
-    # TODO: need to control number of time points?
-
-    dtype = "float32"
-    device, _ = utilities.get_best_device()
-    tensor_scalar_type = utilities.get_torch_scalar_type(dtype)
-
-    move_data = lambda x: utilities.move_data(
-        x,
-        dtype=tensor_scalar_type,
-        device=device,
-    )
-
-    template = {"landmark_points": move_data(base_point.points)}
-
-    exponential.set_initial_template_points(template)
-
-    exponential.control_points_t = move_data(control_points_t)
-    exponential.momenta_t = move_data(momenta_t)
-    exponential.number_of_time_points = len(momenta_t)
-
-    exponential.shoot_is_modified = False
-
-    exponential.flow()
-
-    return exponential.template_points_t["landmark_points"]
