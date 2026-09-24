@@ -4,7 +4,7 @@
 **/_*/
 outputs/
 results/
-debug/
+debug/outputs
 docs/_build
 docs/**/_generated
 docs/.mustache.js

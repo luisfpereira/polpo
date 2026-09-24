@@ -1,0 +1,7 @@
+hormones_gest_week: # outputs dict
+  _target_: polpo.preprocessing.Pipeline
+  data: ${data:hormones}
+  steps:
+    - _target_: polpo.preprocessing.pd.ColumnSelector
+      column_name: gestWeek
+    - _target_: polpo.preprocessing.pd.SeriesToDict

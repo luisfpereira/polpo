@@ -1,0 +1,6 @@
+hormones: # outputs df; may contain None
+  _target_: polpo.preprocessing.Pipeline
+  steps:
+    - _target_: polpo.preprocessing.pd.CsvReader
+      path: "/home/luisfpereira/data/pregnancy/28Baby_Hormones.csv"
+    - _target_: project_pregnancy.app.data_processing.ManipulateDf

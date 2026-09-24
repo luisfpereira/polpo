@@ -1,0 +1,15 @@
+hormones_for_pred: # outputs dict
+  _target_: polpo.preprocessing.Pipeline
+  data: ${data:hormones}
+  steps:
+    - _target_: polpo.preprocessing.pd.ColumnsSelector
+      column_names: # TODO: need to connect with sliders
+        - estro
+        - prog
+        - lh
+    - _target_: polpo.preprocessing.pd.Dropna
+    - _target_: polpo.preprocessing.pd.DfToDict
+      orient: index
+    - _target_: polpo.preprocessing.Map
+      step:
+        -_target_: polpo.preprocessing.DictToValues
