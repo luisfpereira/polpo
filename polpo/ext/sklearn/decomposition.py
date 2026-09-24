@@ -5,6 +5,7 @@ including lower-rank truncated views of fitted PCA estimators.
 """
 
 from sklearn.decomposition import PCA
+from sklearn.utils.extmath import randomized_svd
 
 
 class TruncatedPCA(PCA):
@@ -73,3 +74,42 @@ class TruncatedPCA(PCA):
         out._fit_svd_solver = pca._fit_svd_solver
 
         return out
+
+
+class RandomizedSVD:
+    """Callable randomized singular value decomposition.
+
+    Parameters
+    ----------
+    n_components : int
+        Number of singular values and vectors to compute.
+    random_state : int, RandomState instance or None
+        Random state controlling the randomized algorithm.
+    """
+
+    def __init__(self, n_components, random_state=None):
+        self.n_components = n_components
+        self.random_state = random_state
+
+    def __call__(self, X):
+        """Compute a truncated randomized singular value decomposition.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, n_features)
+            Matrix to decompose.
+
+        Returns
+        -------
+        U : ndarray, shape (n_samples, n_components)
+            Left singular vectors.
+        s : ndarray, shape (n_components,)
+            Singular values.
+        Vt : ndarray, shape (n_components, n_features)
+            Right singular vectors.
+        """
+        return randomized_svd(
+            X,
+            n_components=self.n_components,
+            random_state=self.random_state,
+        )
