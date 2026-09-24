@@ -1,6 +1,6 @@
 """Deformetrica registration utilities."""
 
-from api.deformetrica import Deformetrica
+from deformetrica.api import Deformetrica
 
 
 def estimate_registration(
@@ -54,12 +54,12 @@ def estimate_registration(
     )
 
     deformetrica.estimate_registration(
-        template_specifications=config.template_specifications(source),
+        template_specifications=config.build_template_specifications(source),
         dataset_specifications={
             "visit_ages": [[]],
             "dataset_filenames": [[{"shape": target}]],
             "subject_ids": [target_id],
         },
-        model_options=config.model_options(output_dir),
-        estimator_options=config.estimator_options(),
+        model_options=config.build_model_options(),
+        estimator_options=config.build_estimator_options(),
     )

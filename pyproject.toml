@@ -55,7 +55,7 @@ mesh = [
     "meshio",
 ]
 deformetrica = [
-    "deformetrica@git+https://github.com/nguigs/deformetrica.git@spline-regression",
+    "deformetrica@git+https://github.com/luisfpereira/deformetrica.git@spline-regression",
     "scipy",
     "nibabel",
     "PyQt5",
@@ -95,9 +95,9 @@ pairwise_varifold = [
 ]
 lddmm_to_global = [
     "setuptools",
-    "deformetrica@git+https://github.com/nguigs/deformetrica.git@spline-regression",
+    "deformetrica@git+https://github.com/luisfpereira/deformetrica.git@spline-regression",
     "pyvista",
-    "scikit-learn",                                                                  # TODO: remove dependency
+    "scikit-learn",                                                                        # TODO: remove dependency
     "torch",
     "scipy",
     "nibabel",

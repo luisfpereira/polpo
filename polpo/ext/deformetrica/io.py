@@ -1,3 +1,5 @@
+"""I/O and output-discovery utilities for Deformetrica."""
+
 import re
 
 import numpy as np
@@ -140,10 +142,7 @@ def find_template(dirname):
 
 
 def find_control_points(dirname):
-    """Find the final control points in a Deformetrica output directory.
-
-    The deterministic-atlas and generic final-control-point naming
-    conventions are both supported.
+    """Find estimated control points in a Deformetrica output directory.
 
     Parameters
     ----------
@@ -160,13 +159,17 @@ def find_control_points(dirname):
     FileNotFoundError
         If no supported control-points file is found.
     """
-    for name in (
-        "DeterministicAtlas__EstimatedParameters__ControlPoints.txt",
-        "final_cp.txt",
-    ):
-        path = dirname / name
-        if path.exists():
-            return path
+    paths = list(dirname.glob("*__EstimatedParameters__ControlPoints.txt"))
+    if paths:
+        return _find_unique(paths, "control-points file")
+
+    path = dirname / "final_cp.txt"
+    if path.exists():
+        return path
+
+    paths = list(dirname.glob("*ControlPoints*tp_*.txt"))
+    if paths:
+        return sorted(paths, key=_time_index)[-1]
 
     raise FileNotFoundError("Could not find control points.")
 
@@ -189,19 +192,23 @@ def find_momenta(dirname):
     FileNotFoundError
         If no supported momenta file is found.
     """
-    for name in (
-        "DeterministicAtlas__EstimatedParameters__Momenta.txt",
-        "transported_momenta.txt",
-    ):
-        path = dirname / name
-        if path.exists():
-            return path
+    paths = list(dirname.glob("*__EstimatedParameters__Momenta.txt"))
+    if paths:
+        return _find_unique(paths, "momenta file")
+
+    path = dirname / "transported_momenta.txt"
+    if path.exists():
+        return path
+
+    paths = list(dirname.glob("*Transported_Momenta*tp_*.txt"))
+    if paths:
+        return sorted(paths, key=_time_index)[-1]
 
     raise FileNotFoundError("Could not find momenta.")
 
 
-def find_atlas_momenta(dirname, id_):
-    """Find deterministic-atlas momenta for one subject.
+def find_subject_momenta(dirname, id_):
+    """Find subject-specific momenta in a Deformetrica output directory.
 
     Parameters
     ----------
@@ -216,22 +223,18 @@ def find_atlas_momenta(dirname, id_):
         Path to the subject-specific momenta file.
     """
     return _find_unique(
-        (
-            path
-            for path in dirname.glob("*.txt")
-            if "__Momenta__" in path.name and f"__subject_{id_}" in path.name
-        ),
-        f"deterministic atlas momenta for {id_!r}",
+        dirname.glob(f"*__Momenta__*__subject_{id_}*.txt"),
+        f"momenta for subject {id_!r}",
     )
 
 
-def find_atlas_reconstruction(dirname, id_):
-    """Find the deterministic-atlas reconstruction for one subject.
+def find_subject_reconstruction(dirname, id_):
+    """Find a subject-specific reconstruction in a Deformetrica output directory.
 
     Parameters
     ----------
     dirname : pathlib.Path
-        Deterministic-atlas output directory.
+        Deformetrica output directory.
     id_ : str
         Subject identifier encoded in the Deformetrica filename.
 
@@ -241,22 +244,18 @@ def find_atlas_reconstruction(dirname, id_):
         Path to the reconstructed VTK file.
     """
     return _find_unique(
-        (
-            path
-            for path in dirname.glob("*.vtk")
-            if "__Reconstruction__" in path.name and f"__subject_{id_}" in path.name
-        ),
-        f"deterministic atlas reconstruction for {id_!r}",
+        dirname.glob(f"*__Reconstruction__*__subject_{id_}*.vtk"),
+        f"reconstruction for subject {id_!r}",
     )
 
 
-def find_atlas_flow(dirname, id_):
-    """Find the sampled deterministic-atlas flow for one subject.
+def find_subject_flow(dirname, id_):
+    """Find a subject-specific sampled flow in a Deformetrica output directory.
 
     Parameters
     ----------
     dirname : pathlib.Path
-        Deterministic-atlas output directory.
+        Deformetrica output directory.
     id_ : str
         Subject identifier encoded in the Deformetrica filenames.
 
@@ -265,16 +264,11 @@ def find_atlas_flow(dirname, id_):
     paths : list of pathlib.Path
         Flow VTK files ordered by time-point index.
     """
-    paths = [
-        path
-        for path in dirname.glob("*.vtk")
-        if "__flow__" in path.name and f"__subject_{id_}" in path.name
-    ]
-
+    paths = list(dirname.glob(f"*__flow__*__subject_{id_}*.vtk"))
     return sorted(paths, key=_time_index)
 
 
-def find_shooting_flow(dirname):
+def find_geodesic_flow(dirname):
     """Find the sampled geodesic shooting flow.
 
     Parameters
@@ -287,8 +281,7 @@ def find_shooting_flow(dirname):
     paths : list of pathlib.Path
         Geodesic-flow VTK files ordered by time-point index.
     """
-    paths = [path for path in dirname.glob("*.vtk") if "__GeodesicFlow__" in path.name]
-
+    paths = list(dirname.glob("*__GeodesicFlow__*.vtk"))
     return sorted(paths, key=_time_index)
 
 
@@ -305,77 +298,41 @@ def find_parallel_shooting_flow(dirname):
     paths : list of pathlib.Path
         Parallel-shooting VTK files ordered by time-point index.
     """
-    paths = [path for path in dirname.glob("*.vtk") if "parallel_curve" in path.name]
-
+    paths = list(dirname.glob("*parallel_curve*.vtk"))
     return sorted(paths, key=_time_index)
 
 
-def find_transported_control_points(dirname):
-    """Find the final transported control points.
-
-    The explicit final-control-point file is preferred when present.
-    Otherwise, the last control-points file in the sampled flow is returned.
+def find_reconstructions(dirname):
+    """Find reconstructed surfaces in a Deformetrica output directory.
 
     Parameters
     ----------
     dirname : pathlib.Path
-        Parallel-transport output directory.
+        Deformetrica output directory.
 
     Returns
     -------
-    path : pathlib.Path
-        Path to the final transported control points.
-
-    Raises
-    ------
-    FileNotFoundError
-        If no transported control points can be found.
+    paths : list of pathlib.Path
+        Reconstruction VTK files ordered by time-point index.
     """
-    path = dirname / "final_cp.txt"
-    if path.exists():
-        return path
-
-    paths = [path for path in dirname.glob("*.txt") if "ControlPoints" in path.name]
-
-    if not paths:
-        raise FileNotFoundError("Could not find transported control points.")
-
-    return sorted(paths, key=_time_index)[-1]
+    paths = list(dirname.glob("*__Reconstruction__*.vtk"))
+    return sorted(paths, key=_time_index)
 
 
-def find_transported_momenta(dirname):
-    """Find the final transported momenta.
-
-    The explicit transported-momenta file is preferred when present.
-    Otherwise, the last transported momenta file in the sampled flow is
-    returned.
+def find_external_forces(dirname):
+    """Find estimated external forces in a Deformetrica output directory.
 
     Parameters
     ----------
     dirname : pathlib.Path
-        Parallel-transport output directory.
+        Deformetrica output directory.
 
     Returns
     -------
     path : pathlib.Path
-        Path to the final transported momenta.
-
-    Raises
-    ------
-    FileNotFoundError
-        If no transported momenta can be found.
+        Path to the external-forces file.
     """
-    path = dirname / "transported_momenta.txt"
-    if path.exists():
-        return path
-
-    paths = [
-        path
-        for path in dirname.glob("*.txt")
-        if "Momenta" in path.name and "Transported" in path.name
-    ]
-
-    if not paths:
-        raise FileNotFoundError("Could not find transported momenta.")
-
-    return sorted(paths, key=_time_index)[-1]
+    return _find_unique(
+        dirname.glob("*__EstimatedParameters__ExternalForces.txt"),
+        "external-forces file",
+    )

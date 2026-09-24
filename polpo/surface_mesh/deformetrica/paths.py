@@ -1,3 +1,5 @@
+"""Filesystem layout for persisted LDDMM computations."""
+
 from pathlib import Path
 
 
@@ -18,6 +20,8 @@ class LddmmPaths:
         Shoots directory.
     atlases : path-like
         Atlases directory.
+    regressions : path-like
+        Regressions directory.
 
     Attributes
     ----------
@@ -33,6 +37,8 @@ class LddmmPaths:
         Resolved shoots directory.
     atlases : path-like
         Resolved atlases directory.
+    regressions : path-like
+        Resolved regressions directory.
     """
 
     def __init__(
@@ -43,6 +49,7 @@ class LddmmPaths:
         transports=None,
         shoots=None,
         atlases=None,
+        regressions=None,
     ):
         self.root = root
 
@@ -51,6 +58,7 @@ class LddmmPaths:
         self.transports = self._resolve(transports or "transports")
         self.shoots = self._resolve(shoots or "shoots")
         self.atlases = self._resolve(atlases or "atlases")
+        self.regressions = self._resolve(regressions or "regressions")
 
     def _resolve(self, path):
         path = Path(path)
@@ -82,6 +90,7 @@ class LddmmPaths:
             "transports": self.relative(self.transports).as_posix(),
             "shoots": self.relative(self.shoots).as_posix(),
             "atlases": self.relative(self.atlases).as_posix(),
+            "regressions": self.relative(self.regressions).as_posix(),
         }
 
     @classmethod
@@ -116,7 +125,7 @@ class LddmmPaths:
         Returns
         -------
         path : path-like
-            Registration directory associated with the point.
+            Registration directory associated with the identifier.
         """
         return self.registrations / id_
 
@@ -164,3 +173,18 @@ class LddmmPaths:
             Atlas directory associated with the point.
         """
         return self.atlases / id_
+
+    def regression(self, id_):
+        """Return the regression directory for an identifier.
+
+        Parameters
+        ----------
+        id_ : str
+            Regression identifier.
+
+        Returns
+        -------
+        path : path-like
+            Regression directory associated with the identifier.
+        """
+        return self.regressions / id_

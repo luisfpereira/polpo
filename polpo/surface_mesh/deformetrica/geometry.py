@@ -1,3 +1,5 @@
+"""LDDMM geometry for surface shapes."""
+
 import logging
 import shutil
 from pathlib import Path
@@ -6,16 +8,18 @@ import numpy as np
 
 import polpo.ext.deformetrica as pdefo
 
-from .core import (
+from .paths import LddmmPaths
+from .representations import (
     ControlPoints,
     Momenta,
-    RegistrationResult,
-    ShootResult,
     TangentVector,
-    TransportResult,
     Velocity,
 )
-from .paths import LddmmPaths
+from .results import (
+    RegistrationResult,
+    ShootResult,
+    TransportResult,
+)
 
 try:
     # TODO: make it work with no torch
@@ -90,7 +94,7 @@ class LddmmMetric:
                 metric=attachment_metric,
                 kernel_width=attachment_kernel_width,
             )
-            .set_optimization(freeze_control_points=True)
+            .set_control_points(freeze=True)
         )
 
         self.cache_policy = cache_policy
@@ -183,7 +187,7 @@ class LddmmMetric:
         result = RegistrationResult(id_, self.dir_config, base_point, point)
 
         config = self.config.get_registration_config()
-        fingerprint = config.fingerprint()
+        fingerprint = config.compute_fingerprint()
 
         if not self._can_reuse(result, fingerprint):
             pdefo.registration.estimate_registration(
@@ -196,7 +200,7 @@ class LddmmMetric:
             result.write(
                 cache={
                     "fingerprint": fingerprint,
-                    "params": config.cache_params(),
+                    "params": config.build_cache_params(),
                 }
             )
 
@@ -228,7 +232,7 @@ class LddmmMetric:
         )
 
         config = self.config.get_shoot_config()
-        fingerprint = config.fingerprint()
+        fingerprint = config.compute_fingerprint()
 
         if not self._can_reuse(result, fingerprint):
             pdefo.geometry.shoot(
@@ -241,7 +245,7 @@ class LddmmMetric:
             result.write(
                 cache={
                     "fingerprint": fingerprint,
-                    "params": config.cache_params(),
+                    "params": config.build_cache_params(),
                 }
             )
         return result.point
@@ -475,7 +479,7 @@ class LddmmMetric:
         )
 
         config = self.config.get_parallel_transport_config()
-        fingerprint = config.fingerprint()
+        fingerprint = config.compute_fingerprint()
 
         if not self._can_reuse(result, fingerprint):
             if method != "zero":
@@ -494,7 +498,7 @@ class LddmmMetric:
             result.write(
                 cache={
                     "fingerprint": fingerprint,
-                    "params": config.cache_params(),
+                    "params": config.build_cache_params(),
                 }
             )
 
@@ -571,7 +575,33 @@ class LddmmMetric:
         """
         return np.sqrt(self.squared_norm(tangent_vec, base_point))
 
+    def inner_product(self, tangent_vec_a, tangent_vec_b, base_point=None):
+        """Compute the LDDMM inner product of two tangent vectors."""
+        # NB: base_point is ignored
+        control_points_a_ = tangent_vec_a.control_points.as_array()
+
+        control_points_a, momenta_a, control_points_b, momenta_b = self._move_data(
+            control_points_a_,
+            tangent_vec_a.momenta.as_array(),
+            tangent_vec_b.control_points.as_array(),
+            tangent_vec_b.momenta.as_array(),
+        )
+
+        velocity_b_at_a = self._kernel.convolve(
+            control_points_a,
+            control_points_b,
+            momenta_b,
+        )
+
+        inner_product = (momenta_a * velocity_b_at_a).sum()
+
+        return self._move_data_back(
+            inner_product,
+            like=control_points_a_,
+        )
+
     def velocity_at(self, x, tangent_vec):
+        """Evaluate the velocity field of a tangent vector at given locations."""
         # v(x)=\sum_i K\left(x, c_i\right) p_i
         x_ = x
         x, control_points, momenta = self._move_data(
@@ -584,6 +614,7 @@ class LddmmMetric:
         return Velocity(x_, self._move_data_back(velocity, like=x_))
 
     def momenta_from_velocity(self, velocity):
+        """Recover kernel momenta representing a sampled velocity field."""
         # returns array
         locations = velocity.locations
         locations_, velocity_ = self._move_data(locations, velocity.values)
@@ -596,6 +627,7 @@ class LddmmMetric:
         return self._move_data_back(momenta, locations)
 
     def represent_at(self, locations, tangent_vec):
+        """Represent a tangent vector using control points at given locations."""
         velocity = self.velocity_at(locations, tangent_vec)
         momenta = self.momenta_from_velocity(velocity)
 
@@ -605,6 +637,7 @@ class LddmmMetric:
         )
 
     def tangent_vec_from_velocity(self, velocity):
+        """Convert a sampled velocity field to a tangent-vector representation."""
         momenta = self.momenta_from_velocity(velocity)
 
         return TangentVector(

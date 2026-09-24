@@ -1,11 +1,15 @@
+"""Geodesic shooting and parallel transport utilities for Deformetrica."""
+
 import logging
 
-from core.model_tools.deformations.exponential import Exponential  # noqa: F401
-from launch.compute_parallel_transport import (
+from deformetrica.core.model_tools.deformations.exponential import (
+    Exponential,  # noqa: F401
+)
+from deformetrica.launch.compute_parallel_transport import (
     compute_parallel_transport,
     compute_pole_ladder,
 )
-from launch.compute_shooting import compute_shooting
+from deformetrica.launch.compute_shooting import compute_shooting
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +21,21 @@ def shoot(
     output_dir,
     config,
 ):
-    """Shoot a geodesic deformation."""
+    """Shoot an LDDMM geodesic from control points and momenta.
+
+    Parameters
+    ----------
+    source : path-like
+        Path to the source surface.
+    control_points : path-like
+        Path to the initial control points.
+    momenta : path-like
+        Path to the initial momenta.
+    output_dir : pathlib.Path
+        Directory where Deformetrica outputs are written.
+    config : ShootConfig
+        Geodesic-shooting configuration.
+    """
     template_specifications = {
         "shape": {
             "deformable_object_type": "SurfaceMesh",
@@ -33,7 +51,7 @@ def shoot(
         initial_control_points=control_points,
         initial_momenta=momenta,
         output_dir=output_dir,
-        **config.to_kwargs(),
+        **config.to_options(),
     )
 
 
@@ -85,7 +103,7 @@ def _parallel_transport_pole_ladder(
         output_dir=output_dir,
         tmin=0,
         tmax=1,
-        **config.to_kwargs(),
+        **config.to_options(),
     )
 
     return transported_cp, transported_mom
@@ -148,7 +166,7 @@ def _parallel_transport_fanning(
         initial_control_points_to_transport=control_points_to_transport,
         tmin=0,
         tmax=1,
-        **config.to_kwargs(),
+        **config.to_options(),
     )
 
 
