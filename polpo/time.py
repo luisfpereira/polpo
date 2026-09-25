@@ -10,6 +10,81 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+class _Timing:
+    """Track the timing of a single interval."""
+
+    def __init__(self):
+        self._start_tick = None
+        self._end_tick = None
+        self.started_at = None
+        self.finished_at = None
+
+    def start(self):
+        """Start timing the interval.
+
+        Returns
+        -------
+        self : _Timing
+            Started timing.
+        """
+        if self._start_tick is not None:
+            raise RuntimeError("already started")
+
+        self._start_tick = time.perf_counter()
+        self.started_at = utc_now()
+
+        return self
+
+    def stop(self):
+        """Stop timing the interval.
+
+        Returns
+        -------
+        self : _Timing
+            Stopped timing.
+        """
+        if self._start_tick is None:
+            raise RuntimeError("not started")
+
+        if self._end_tick is not None:
+            raise RuntimeError("already stopped")
+
+        self._end_tick = time.perf_counter()
+        self.finished_at = utc_now()
+
+        return self
+
+    def duration(self):
+        """Return the interval duration.
+
+        Returns
+        -------
+        duration : float
+            Duration in seconds.
+        """
+        if self._start_tick is None:
+            raise RuntimeError("not started")
+
+        if self._end_tick is None:
+            raise RuntimeError("not stopped")
+
+        return self._end_tick - self._start_tick
+
+    def as_dict(self):
+        """Return timing information as a dictionary.
+
+        Returns
+        -------
+        data : dict
+            Start and finish timestamps and duration.
+        """
+        return {
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "duration": self.duration(),
+        }
+
+
 class Timer:
     """Track execution times for named events within a run."""
 
@@ -25,120 +100,99 @@ class Timer:
             Reset timer.
         """
         self.events = {}
-        self._start = None
-        self._end = None
-        self.started_at = None
-        self.finished_at = None
+        self._run = _Timing()
         return self
 
-    def start(self, key=None):
-        """Start timing an event.
-
-        Parameters
-        ----------
-        key : hashable
-            Event identifier.
-        """
+    def _get_timing(self, key=None):
+        """Return the timing associated with a run or event."""
         if key is None:
-            self.reset()
-            self.started_at = utc_now()
-            self._start = time.perf_counter()
-            return self
-
-        if key in self.events and "started_at" in self.events[key]:
-            raise RuntimeError(f"{key} already started")
-
-        self.events[key] = {
-            "start": time.perf_counter(),
-            "started_at": utc_now(),
-        }
-
-        return self
-
-    def stop(self, key=None):
-        """Stop timing an event.
-
-        Parameters
-        ----------
-        key : hashable
-            Event identifier.
-        """
-        if key is None:
-            self.finished_at = utc_now()
-            self._end = time.perf_counter()
-            return self
-
-        if key not in self.events or "start" not in self.events[key]:
-            raise RuntimeError(f"{key} not started")
-
-        event = self.events[key]
-        if "end" in event:
-            raise RuntimeError(f"{key} already stopped")
-
-        event["end"] = time.perf_counter()
-        event["finished_at"] = utc_now()
-
-        return self
-
-    def duration(self, key=None):
-        """Return the duration of a completed event.
-
-        Parameters
-        ----------
-        key : hashable
-            Event identifier.
-
-        Returns
-        -------
-        duration : float
-            Elapsed time in seconds.
-        """
-        if key is None:
-            if self._start is None:
-                raise RuntimeError("run not started")
-            if self._end is None:
-                raise RuntimeError("run not stopped")
-            return self._end - self._start
+            return self._run
 
         if key not in self.events:
             raise RuntimeError(f"{key} unknown")
 
-        event = self.events[key]
-        if "end" not in event:
-            raise RuntimeError(f"{key} not stopped")
+        return self.events[key]
 
-        return event["end"] - event["start"]
-
-    def as_dict(self, key=None):
-        """Return run metadata and event timings.
+    def start(self, key=None):
+        """Start timing a run or event.
 
         Parameters
         ----------
         key : hashable
-            Event identifier.
+            Event identifier. If None, start a new run.
+
+        Returns
+        -------
+        self : Timer
+            Timer with the run or event started.
+        """
+        if key is None:
+            self.reset()
+            self._run.start()
+            return self
+
+        if key in self.events:
+            raise RuntimeError(f"{key} already started")
+
+        self.events[key] = _Timing().start()
+
+        return self
+
+    def stop(self, key=None):
+        """Stop timing a run or event.
+
+        Parameters
+        ----------
+        key : hashable
+            Event identifier. If None, stop the current run.
+
+        Returns
+        -------
+        self : Timer
+            Timer with the run or event stopped.
+        """
+        self._get_timing(key).stop()
+
+        return self
+
+    def duration(self, key=None):
+        """Return the duration of a completed run or event.
+
+        Parameters
+        ----------
+        key : hashable
+            Event identifier. If None, return the run duration.
+
+        Returns
+        -------
+        duration : float
+            Duration in seconds.
+        """
+        return self._get_timing(key).duration()
+
+    def as_dict(self, key=None):
+        """Return timing information for a run or event.
+
+        Parameters
+        ----------
+        key : hashable
+            Event identifier. If None, return the full run information.
 
         Returns
         -------
         data : dict
-            Run timestamps and timing information for each event.
+            Timing information.
         """
         if key is None:
             return {
-                "started_at": self.started_at,
-                "finished_at": self.finished_at,
-                "duration": self.duration(),
+                **self._run.as_dict(),
                 "events": {key: self.as_dict(key) for key in self.events},
             }
 
-        event = self.events[key]
-        return {
-            "started_at": event["started_at"],
-            "finished_at": event["finished_at"],
-            "duration": self.duration(key),
-        }
+        return self._get_timing(key).as_dict()
 
     @contextmanager
-    def __call__(self, key):
+    def __call__(self, key=None):
         """Time an event within a context manager.
 
         Parameters
@@ -146,8 +200,7 @@ class Timer:
         key : hashable
             Event identifier.
         """
-        # use e.g. ```with timer("simulation"):```
-        self._start(key)
+        self.start(key)
         try:
             yield
         finally:

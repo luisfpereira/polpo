@@ -149,8 +149,7 @@ class TaskRunner(ABC):
         """Mark a task as completed in the manifest."""
         self.manifest_["tasks"][task] = {
             "status": "completed",
-            "finished_at": utc_now(),
-            "elapsed": self.timer.as_dict()[task],
+            **self.timer.as_dict(task),
         }
 
     def _mark_failed(self, task, error):
@@ -158,7 +157,7 @@ class TaskRunner(ABC):
         self.manifest_["status"] = "failed"
         self.manifest_["tasks"][task] = {
             "status": "failed",
-            "finished_at": utc_now(),
+            **self.timer.as_dict(task),
             "error": {
                 "type": type(error).__name__,
                 "message": str(error),
@@ -295,7 +294,6 @@ class TaskRunner(ABC):
         self.manifest_path.unlink(missing_ok=True)
 
         self.resolved_ = {}
-        self.timer = Timer()
 
         return self
 
@@ -325,7 +323,8 @@ class TaskRunner(ABC):
             This runner.
         """
         tasks = self._resolve_tasks(tasks, exclude_tasks)
-        return self._run_tasks(tasks, overwrite, continue_on_error)
+        with self.timer():
+            return self._run_tasks(tasks, overwrite, continue_on_error)
 
 
 class CompositeTaskRunner(TaskRunner):
