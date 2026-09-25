@@ -1,6 +1,7 @@
 import logging
 import platform
 from abc import ABC
+from pathlib import Path
 
 from polpo.io.json import load_json, save_json
 from polpo.time import Timer, utc_now
@@ -52,6 +53,31 @@ class TaskRunner(ABC):
         self.resolved_ = {}
         self.timer = Timer()
         self.logger = logger or _get_default_logger(self)
+
+    def from_callable(cls, fn, state_dir=None, name=None, metadata=None, logger=None):
+        """Create a task runner from a callable.
+
+        Parameters
+        ----------
+        fn : callable
+            Callable to execute as the runner's single task.
+        state_dir : path-like
+            Directory where the runner state and manifest are stored.
+        name : str or None
+            Task name. If None, ``fn.__name__`` is used.
+        metadata : dict or None
+            Metadata to include in the manifest.
+        logger : logging.Logger or None
+            Logger used to report execution progress.
+
+        Returns
+        -------
+        runner : SingleTaskRunner
+            Task runner wrapping the callable.
+        """
+        return SingleTaskRunner(
+            fn, state_dir, name=name, metadata=metadata, logger=logger
+        )
 
     @property
     def manifest_path(self):
@@ -434,3 +460,43 @@ class CompositeTaskRunner(TaskRunner):
             overwrite=overwrite,
             continue_on_error=continue_on_error,
         )
+
+
+class SingleTaskRunner(TaskRunner):
+    """Run a single callable as a named task.
+
+    Parameters
+    ----------
+    fn : callable
+        Callable to execute.
+    state_dir : path-like
+        Directory where the runner state and manifest are stored.
+    name : str or None
+        Task name. If None, ``fn.__name__`` is used.
+    metadata : dict or None
+        Metadata to include in the manifest.
+    logger : logging.Logger or None
+        Logger used to report execution progress.
+    """
+
+    def __init__(self, fn, state_dir=None, name=None, metadata=None, logger=None):
+        if name is None:
+            name = fn.__name__
+
+        if state_dir is None:
+            state_dir = Path(f".{name}")
+
+        super().__init__(state_dir, metadata, logger)
+
+        self.fn = fn
+        self.name = name
+
+    def tasks(self):
+        """Return the single task.
+
+        Returns
+        -------
+        tasks : dict
+            Mapping from the task name to the wrapped callable.
+        """
+        return {self.name: self.fn}
