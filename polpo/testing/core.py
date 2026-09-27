@@ -75,7 +75,10 @@ class TestFunction:
         data = []
         for datum in self.data_fnc():
             datum, datum_marks = _unpack_test_datum(datum)
-            datum = {**default_values, **_normalize_datum(datum, self.arg_names)}
+            datum = {
+                **default_values,
+                **_normalize_datum(datum, self.arg_names, func_name=self.name),
+            }
 
             values = [datum[name] for name in self.arg_names]
             data.append(pytest.param(*values, marks=datum_marks))

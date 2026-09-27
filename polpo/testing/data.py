@@ -25,16 +25,23 @@ def _unpack_test_datum(datum):
     return datum, ()
 
 
-def _normalize_datum(datum, arg_names):
+def _normalize_datum(datum, arg_names, func_name=None):
     if isinstance(datum, Mapping):
         unknown = datum.keys() - set(arg_names)
         if unknown:
-            raise ValueError(f"Unknown argument names: {sorted(unknown)}.")
+            message = f"Unknown argument names: {sorted(unknown)}."
+            if func_name is not None:
+                message = f"{func_name}: {message}"
+
+            raise ValueError(message)
 
         return datum
 
     if len(datum) > len(arg_names):
-        raise ValueError(f"Got {len(datum)} values for {len(arg_names)} arguments.")
+        message = f"Got {len(datum)} values for {len(arg_names)} arguments."
+        if func_name is not None:
+            message = f"{func_name}: {message}"
+        raise ValueError(message)
 
     return dict(zip(arg_names, datum))
 
@@ -269,16 +276,12 @@ class BaseGeometricCaseData(CaseData):
         arg_names,
         dependencies,
         data_generator,
-        op,
+        expected_func,
         expected_name="expected",
-        expected_func=None,
         vectorization_type=None,
         n_reps=2,
         **values,
     ):
-        if expected_func is None:
-            expected_func = lambda op, **kwargs: op(**kwargs)
-
         vectorization_type = _resolve_vectorization_type(
             arg_names,
             dependencies,
@@ -293,7 +296,7 @@ class BaseGeometricCaseData(CaseData):
         )
 
         expected_value = LazyValue(
-            lambda **kwargs: expected_func(op, **kwargs),
+            expected_func,
             **datum,
         )
 
@@ -384,19 +387,8 @@ class GeometricCaseData(BaseGeometricCaseData):
             excluded_methods=excluded_methods,
         )
 
-        self._space = None
+        self.space = space
         self.data_generator = LazyValue(lambda: get_data_generator(self.space))
-
-        if space is not None:
-            self.space = space
-
-    @property
-    def space(self):
-        return self._space
-
-    @space.setter
-    def space(self, space):
-        self._space = space
 
     def generate_random_data(
         self,
@@ -423,9 +415,9 @@ class GeometricCaseData(BaseGeometricCaseData):
         arg_names,
         op_name=None,
         expected_name="expected",
-        expected_func=None,
         vectorization_type=None,
         dependencies=None,
+        op_evaluator=None,
         n_reps=2,
         on_metric=False,
         **values,
@@ -433,23 +425,28 @@ class GeometricCaseData(BaseGeometricCaseData):
         if op_name is None:
             op_name = _get_op_name_from_caller()
 
+        if op_evaluator is None:
+            op_evaluator = lambda op, **kwargs: op(**kwargs)
+
         arg_names, dependencies = self._resolve_arg_names(
             arg_names,
             dependencies,
         )
 
-        op = getattr(
-            self.space.metric if on_metric else self.space,
-            op_name,
+        expected_func = lambda **kwargs: op_evaluator(
+            getattr(
+                self.space.metric if on_metric else self.space,
+                op_name,
+            ),
+            **kwargs,
         )
 
         return self._generate_vectorization_data(
             arg_names,
             dependencies,
             self.data_generator,
-            op,
+            expected_func,
             expected_name=expected_name,
-            expected_func=expected_func,
             vectorization_type=vectorization_type,
             n_reps=n_reps,
             **values,
@@ -471,8 +468,8 @@ class FiberBundleCaseData(BaseGeometricCaseData):
             excluded_methods=excluded_methods,
         )
 
-        self._total_space = None
-        self._base_space = None
+        self.total_space = total_space
+        self.base_space = base_space
 
         self.total_space_data_generator = LazyValue(
             lambda: get_data_generator(self.total_space)
@@ -481,28 +478,6 @@ class FiberBundleCaseData(BaseGeometricCaseData):
         self.base_space_data_generator = LazyValue(
             lambda: get_data_generator(self.base_space)
         )
-
-        if total_space is not None:
-            self.total_space = total_space
-
-        if base_space is not None:
-            self.base_space = base_space
-
-    @property
-    def total_space(self):
-        return self._total_space
-
-    @total_space.setter
-    def total_space(self, total_space):
-        self._total_space = total_space
-
-    @property
-    def base_space(self):
-        return self._base_space
-
-    @base_space.setter
-    def base_space(self, base_space):
-        self._base_space = base_space
 
     def _get_data_generator(self, space):
         if space == "base":
@@ -542,7 +517,6 @@ class FiberBundleCaseData(BaseGeometricCaseData):
         space="total",
         op_name=None,
         expected_name="expected",
-        expected_func=None,
         vectorization_type=None,
         dependencies=None,
         n_reps=2,
@@ -558,18 +532,17 @@ class FiberBundleCaseData(BaseGeometricCaseData):
             dependencies,
         )
 
-        op = getattr(
+        expected_func = lambda **kwargs: getattr(
             self.total_space.fiber_bundle,
             op_name,
-        )
+        )(**kwargs)
 
         return self._generate_vectorization_data(
             arg_names,
             dependencies,
             data_generator,
-            op,
+            expected_func,
             expected_name=expected_name,
-            expected_func=expected_func,
             vectorization_type=vectorization_type,
             n_reps=n_reps,
             **values,
@@ -628,7 +601,6 @@ class FiberBundleCaseData(BaseGeometricCaseData):
 
 class CompositeGeometricCaseData:
     def __init__(self, *components):
-        object.__setattr__(self, "_propagated_properties", ())
         self.components = []
 
         for component in components:
@@ -643,31 +615,18 @@ class CompositeGeometricCaseData:
                 self.add_component(component_)
             return
 
-        properties = _get_settable_properties(component)
-
-        if not self.components:
-            self._propagated_properties = properties
-
-        elif properties != self._propagated_properties:
-            raise TypeError("Incompatible component properties.")
-
         self.components.append(component)
 
-    def __setattr__(self, name, value):
-        if name.startswith("_") or name == "components":
-            object.__setattr__(self, name, value)
-            return
+    def propagate(self, name, value):
+        matched = False
 
-        if name not in self._propagated_properties:
-            raise AttributeError(
-                f"{type(self).__name__!s} has no settable attribute {name!r}."
-            )
-
-        if name in self._propagated_properties:
-            for component in self.components:
+        for component in self.components:
+            if hasattr(component, name):
                 setattr(component, name, value)
+                matched = True
 
-        object.__setattr__(self, name, value)
+        if not matched:
+            raise AttributeError(f"No component has attribute {name!r}.")
 
     def get_decorators(self):
         decorators = []
@@ -825,15 +784,3 @@ def _get_op_name_from_caller():
         raise ValueError("Cannot infer operation name from " f"{caller_name!r}.")
 
     return caller_name.removesuffix(suffix)
-
-
-def _get_settable_properties(obj):
-    return {
-        name
-        for name in dir(type(obj))
-        if isinstance(
-            descriptor := inspect.getattr_static(type(obj), name),
-            property,
-        )
-        and descriptor.fset is not None
-    }
