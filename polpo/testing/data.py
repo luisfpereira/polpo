@@ -666,6 +666,39 @@ class CompositeGeometricCaseData:
         return methods
 
 
+class MarkedTestData:
+    def __init__(self, testing_data, marks):
+        self.testing_data = testing_data
+        self.marks = marks
+
+    def __getattr__(self, name):
+        return getattr(self.testing_data, name)
+
+    def __setattr__(self, name, value):
+        if name in {"testing_data", "marks"}:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self.testing_data, name, value)
+
+    def get_data_methods(self):
+        data_methods = self.testing_data.get_data_methods()
+
+        return {name: self._mark(method) for name, method in data_methods.items()}
+
+    def _mark(self, method):
+        func = method.__func__
+
+        for mark in self.marks:
+            func = mark(func)
+
+        return func.__get__(method.__self__, type(method.__self__))
+
+
+class MarkedGeometricTestData(MarkedTestData):
+    def get_vectorization_data_methods(self):
+        return self._mark_methods(self.testing_data.get_vectorization_data_methods())
+
+
 def _get_vectorization_combinations(n_args, vectorization_type):
     """Get repetition combinations for vectorization tests.
 
