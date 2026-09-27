@@ -39,7 +39,7 @@ def _normalize_datum(datum, arg_names):
     return dict(zip(arg_names, datum))
 
 
-class DataCase:
+class CaseData:
     def __init__(self, excluded_methods=()):
         self.excluded_methods = set(excluded_methods)
 
@@ -74,7 +74,7 @@ class DataCase:
     def _with_values(self, datum, **values):
         if isinstance(datum, TestDatum):
             return TestDatum(
-                {**datum.values, **values},
+                {**datum.data, **values},
                 marks=datum.marks,
             )
 
@@ -169,18 +169,14 @@ def materialize_lazy_values(func):
     return wrapper
 
 
-class GeometricTestData(DataCase):
+class BaseGeometricCaseData(CaseData):
     def __init__(
         self,
-        space=None,
         point_counts=None,
         time_counts=None,
         excluded_methods=(),
     ):
         super().__init__(excluded_methods=excluded_methods)
-
-        self._space = None
-        self.data_generator = None
 
         self.point_counts = (
             [1] + random.sample(range(2, 5), 1)
@@ -192,23 +188,8 @@ class GeometricTestData(DataCase):
             [1] + random.sample(range(2, 5), 1) if time_counts is None else time_counts
         )
 
-        if space is not None:
-            self.space = space
-
     def __add__(self, other):
-        if not isinstance(other, GeometricTestData):
-            return NotImplemented
-
-        return CompositeGeometricTestData(self, other)
-
-    @property
-    def space(self):
-        return self._space
-
-    @space.setter
-    def space(self, space):
-        self._space = space
-        self.data_generator = get_data_generator(space)
+        return CompositeGeometricCaseData(self, other)
 
     def get_decorators(self):
         return [materialize_lazy_values]
@@ -223,105 +204,96 @@ class GeometricTestData(DataCase):
             suffix="_vec_test_data",
         )
 
-    def generate_random_data(
+    def _generate_random_data(
         self,
         arg_names,
-        dependencies=None,
+        dependencies,
+        data_generator,
         exclude_single=False,
         **values,
     ):
-        """Generate lazy random manifold data."""
-        arg_names, dependencies = self._resolve_arg_names(arg_names, dependencies)
-
         data = []
+
         for n_points in self.point_counts:
             if exclude_single and n_points == 1:
                 continue
 
             datum = self._generate_random_datum(
-                arg_names, dependencies, n_points=n_points, **values
+                arg_names,
+                dependencies,
+                data_generator,
+                n_points=n_points,
+                **values,
             )
 
             data.append(TestDatum(datum, marks=(pytest.mark.random,)))
 
         return data
 
-    def _resolve_arg_names(self, arg_names, dependencies=None):
-        if isinstance(arg_names, str):
-            arg_names = (arg_names,)
-
-        point_names = [name for name in arg_names if "point" in name]
-        tangent_names = [name for name in arg_names if _is_tangent_arg(name)]
-
-        ignored = set(arg_names) - set(point_names) - set(tangent_names)
-        if ignored:
-            raise ValueError(f"Unsupported argument names: {sorted(ignored)}.")
-
-        if dependencies is None:
-            dependencies = {}
-
-            if len(point_names) == 1:
-                point_name = point_names[0]
-                dependencies.update({name: point_name for name in tangent_names})
-
-        return arg_names, dependencies
-
-    def _generate_random_datum(self, arg_names, dependencies, n_points=1, **values):
+    def _generate_random_datum(
+        self,
+        arg_names,
+        dependencies,
+        data_generator,
+        n_points=1,
+        **values,
+    ):
         datum = dict(values)
+
+        def _random_point(data_generator, n_points):
+            return data_generator.random_point(n_points)
+
+        def _random_tangent_vec(data_generator, base_point):
+            return data_generator.random_tangent_vec(base_point)
 
         for arg_name in arg_names:
             if arg_name in dependencies:
-                base = datum[dependencies[arg_name]]
                 datum[arg_name] = LazyValue(
-                    lambda base: self.data_generator.random_tangent_vec(base),
-                    base,
+                    _random_tangent_vec,
+                    data_generator,
+                    datum[dependencies[arg_name]],
                     label=f"n={n_points}",
                 )
             else:
                 datum[arg_name] = LazyValue(
-                    lambda n=n_points: self.data_generator.random_point(n),
+                    _random_point,
+                    data_generator,
+                    n_points,
                     label=f"n={n_points}",
                 )
 
         return datum
 
-    def generate_vectorization_data(
+    def _generate_vectorization_data(
         self,
         arg_names,
-        op_name=None,
+        dependencies,
+        data_generator,
+        op,
         expected_name="expected",
         expected_func=None,
         vectorization_type=None,
-        dependencies=None,
         n_reps=2,
-        on_metric=False,
         **values,
     ):
-        if op_name is None:
-            op_name = _get_op_name_from_caller()
-
         if expected_func is None:
             expected_func = lambda op, **kwargs: op(**kwargs)
 
-        arg_names, dependencies = self._resolve_arg_names(arg_names, dependencies)
         vectorization_type = _resolve_vectorization_type(
-            arg_names, dependencies, vectorization_type
+            arg_names,
+            dependencies,
+            vectorization_type,
         )
 
         datum = self._generate_random_datum(
             arg_names,
             dependencies,
+            data_generator,
             n_points=1,
         )
 
         expected_value = LazyValue(
-            lambda **kwargs: expected_func(
-                getattr(
-                    self.space.metric if on_metric else self.space,
-                    op_name,
-                ),
-                **kwargs,
-            ),
+            lambda **kwargs: expected_func(op, **kwargs),
             **datum,
         )
 
@@ -377,18 +349,46 @@ class GeometricTestData(DataCase):
 
         return data
 
+    def _resolve_arg_names(self, arg_names, dependencies=None):
+        if isinstance(arg_names, str):
+            arg_names = (arg_names,)
 
-class CompositeGeometricTestData(GeometricTestData):
-    def __init__(self, *components):
-        self.components = []
+        point_names = [name for name in arg_names if "point" in name]
+        tangent_names = [name for name in arg_names if _is_tangent_arg(name)]
 
-        for component in components:
-            if isinstance(component, CompositeGeometricTestData):
-                self.components.extend(component.components)
-            else:
-                self.components.append(component)
+        ignored = set(arg_names) - set(point_names) - set(tangent_names)
+        if ignored:
+            raise ValueError(f"Unsupported argument names: {sorted(ignored)}.")
+
+        if dependencies is None:
+            dependencies = {}
+
+            if len(point_names) == 1:
+                point_name = point_names[0]
+                dependencies.update({name: point_name for name in tangent_names})
+
+        return arg_names, dependencies
+
+
+class GeometricCaseData(BaseGeometricCaseData):
+    def __init__(
+        self,
+        space=None,
+        point_counts=None,
+        time_counts=None,
+        excluded_methods=(),
+    ):
+        super().__init__(
+            point_counts=point_counts,
+            time_counts=time_counts,
+            excluded_methods=excluded_methods,
+        )
 
         self._space = None
+        self.data_generator = LazyValue(lambda: get_data_generator(self.space))
+
+        if space is not None:
+            self.space = space
 
     @property
     def space(self):
@@ -398,8 +398,290 @@ class CompositeGeometricTestData(GeometricTestData):
     def space(self, space):
         self._space = space
 
+    def generate_random_data(
+        self,
+        arg_names,
+        dependencies=None,
+        exclude_single=False,
+        **values,
+    ):
+        arg_names, dependencies = self._resolve_arg_names(
+            arg_names,
+            dependencies,
+        )
+
+        return self._generate_random_data(
+            arg_names,
+            dependencies,
+            self.data_generator,
+            exclude_single=exclude_single,
+            **values,
+        )
+
+    def generate_vectorization_data(
+        self,
+        arg_names,
+        op_name=None,
+        expected_name="expected",
+        expected_func=None,
+        vectorization_type=None,
+        dependencies=None,
+        n_reps=2,
+        on_metric=False,
+        **values,
+    ):
+        if op_name is None:
+            op_name = _get_op_name_from_caller()
+
+        arg_names, dependencies = self._resolve_arg_names(
+            arg_names,
+            dependencies,
+        )
+
+        op = getattr(
+            self.space.metric if on_metric else self.space,
+            op_name,
+        )
+
+        return self._generate_vectorization_data(
+            arg_names,
+            dependencies,
+            self.data_generator,
+            op,
+            expected_name=expected_name,
+            expected_func=expected_func,
+            vectorization_type=vectorization_type,
+            n_reps=n_reps,
+            **values,
+        )
+
+
+class FiberBundleCaseData(BaseGeometricCaseData):
+    def __init__(
+        self,
+        total_space=None,
+        base_space=None,
+        point_counts=None,
+        time_counts=None,
+        excluded_methods=(),
+    ):
+        super().__init__(
+            point_counts=point_counts,
+            time_counts=time_counts,
+            excluded_methods=excluded_methods,
+        )
+
+        self._total_space = None
+        self._base_space = None
+
+        self.total_space_data_generator = LazyValue(
+            lambda: get_data_generator(self.total_space)
+        )
+
+        self.base_space_data_generator = LazyValue(
+            lambda: get_data_generator(self.base_space)
+        )
+
+        if total_space is not None:
+            self.total_space = total_space
+
+        if base_space is not None:
+            self.base_space = base_space
+
+    @property
+    def total_space(self):
+        return self._total_space
+
+    @total_space.setter
+    def total_space(self, total_space):
+        self._total_space = total_space
+
+    @property
+    def base_space(self):
+        return self._base_space
+
+    @base_space.setter
+    def base_space(self, base_space):
+        self._base_space = base_space
+
+    def _get_data_generator(self, space):
+        if space == "base":
+            return self.base_space_data_generator
+
+        if space == "total":
+            return self.total_space_data_generator
+
+        raise ValueError(f"Unknown ``space`` {space}")
+
+    def generate_random_data(
+        self,
+        arg_names,
+        space="total",
+        dependencies=None,
+        exclude_single=False,
+        **values,
+    ):
+        data_generator = self._get_data_generator(space)
+
+        arg_names, dependencies = self._resolve_arg_names(
+            arg_names,
+            dependencies,
+        )
+
+        return self._generate_random_data(
+            arg_names,
+            dependencies,
+            data_generator,
+            exclude_single=exclude_single,
+            **values,
+        )
+
+    def generate_vectorization_data(
+        self,
+        arg_names,
+        space="total",
+        op_name=None,
+        expected_name="expected",
+        expected_func=None,
+        vectorization_type=None,
+        dependencies=None,
+        n_reps=2,
+        **values,
+    ):
+        data_generator = self._get_data_generator(space)
+
+        if op_name is None:
+            op_name = _get_op_name_from_caller()
+
+        arg_names, dependencies = self._resolve_arg_names(
+            arg_names,
+            dependencies,
+        )
+
+        op = getattr(
+            self.total_space.fiber_bundle,
+            op_name,
+        )
+
+        return self._generate_vectorization_data(
+            arg_names,
+            dependencies,
+            data_generator,
+            op,
+            expected_name=expected_name,
+            expected_func=expected_func,
+            vectorization_type=vectorization_type,
+            n_reps=n_reps,
+            **values,
+        )
+
+    def _random_horizontal_vec(self, base_point, fiber_point):
+        tangent_vec = self.base_space_data_generator.random_tangent_vec(base_point)
+
+        return self.total_space.fiber_bundle.horizontal_lift(
+            tangent_vec,
+            fiber_point=fiber_point,
+            base_point=base_point,
+        )
+
+    def _generate_lifted_random_datum(
+        self,
+        point_name,
+        horizontal_names=(),
+        tangent_names=(),
+        n_points=1,
+        **values,
+    ):
+        datum = dict(values)
+
+        base_space_point = LazyValue(
+            self.base_space_data_generator.random_point,
+            n_points,
+            label=f"n={n_points}",
+        )
+
+        fiber_point = LazyValue(
+            self.total_space.fiber_bundle.lift,
+            base_space_point,
+            label=f"n={n_points}",
+        )
+
+        datum[point_name] = fiber_point
+
+        for name in horizontal_names:
+            datum[name] = LazyValue(
+                self._random_horizontal_vec,
+                base_space_point,
+                fiber_point,
+                label=f"n={n_points}",
+            )
+
+        for name in tangent_names:
+            datum[name] = LazyValue(
+                self.total_space_data_generator.random_tangent_vec,
+                fiber_point,
+                label=f"n={n_points}",
+            )
+
+        return datum
+
+
+class CompositeGeometricCaseData:
+    def __init__(self, *components):
+        object.__setattr__(self, "_propagated_properties", ())
+        self.components = []
+
+        for component in components:
+            self.add_component(component)
+
+    def __add__(self, other):
+        return CompositeGeometricCaseData(self, other)
+
+    def add_component(self, component):
+        if isinstance(component, CompositeGeometricCaseData):
+            for component_ in component.components:
+                self.add_component(component_)
+            return
+
+        properties = _get_settable_properties(component)
+
+        if not self.components:
+            self._propagated_properties = properties
+
+        elif properties != self._propagated_properties:
+            raise TypeError("Incompatible component properties.")
+
+        self.components.append(component)
+
+    def __setattr__(self, name, value):
+        if name.startswith("_") or name == "components":
+            object.__setattr__(self, name, value)
+            return
+
+        if name not in self._propagated_properties:
+            raise AttributeError(
+                f"{type(self).__name__!s} has no settable attribute {name!r}."
+            )
+
+        if name in self._propagated_properties:
+            for component in self.components:
+                setattr(component, name, value)
+
+        object.__setattr__(self, name, value)
+
+    def get_decorators(self):
+        decorators = []
+        seen = set()
+
         for component in self.components:
-            component.space = space
+            for decorator in component.get_decorators():
+                if decorator in seen:
+                    continue
+
+                seen.add(decorator)
+                decorators.append(decorator)
+
+        return decorators
 
     def get_data_methods(self):
         return self._merge_methods(
@@ -543,3 +825,15 @@ def _get_op_name_from_caller():
         raise ValueError("Cannot infer operation name from " f"{caller_name!r}.")
 
     return caller_name.removesuffix(suffix)
+
+
+def _get_settable_properties(obj):
+    return {
+        name
+        for name in dir(type(obj))
+        if isinstance(
+            descriptor := inspect.getattr_static(type(obj), name),
+            property,
+        )
+        and descriptor.fset is not None
+    }
