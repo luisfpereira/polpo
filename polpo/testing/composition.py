@@ -80,9 +80,10 @@ class MarkedTestData:
             setattr(self.testing_data, name, value)
 
     def get_data_methods(self):
-        data_methods = self.testing_data.get_data_methods()
+        return self._mark_methods(self.testing_data.get_data_methods())
 
-        return {name: self._mark(method) for name, method in data_methods.items()}
+    def _mark_methods(self, methods):
+        return {name: self._mark(method) for name, method in methods.items()}
 
     def _mark(self, method):
         func = method.__func__

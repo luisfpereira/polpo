@@ -1,5 +1,6 @@
 import inspect
 import itertools
+import operator
 import random
 
 import pytest
@@ -114,12 +115,6 @@ class BaseGeometricCaseData(CaseData):
     ):
         datum = dict(values)
 
-        def _random_point(data_generator, n_points):
-            return data_generator.random_point(n_points)
-
-        def _random_tangent_vec(data_generator, base_point):
-            return data_generator.random_tangent_vec(base_point)
-
         for arg_name in arg_names:
             if arg_name in dependencies:
                 datum[arg_name] = LazyValue(
@@ -213,12 +208,28 @@ class BaseGeometricCaseData(CaseData):
             vectorization_type,
         )
 
-        expected_value_rep = LazyValue(
-            repeat_point,
-            expected_value,
-            n_reps=n_reps,
-            label=f"r={n_reps}",
-        )
+        if isinstance(expected_name, str):
+            expected_values = {
+                expected_name: expected_value,
+            }
+        else:
+            expected_values = {
+                name: LazyValue(
+                    operator.itemgetter(index),
+                    expected_value,
+                )
+                for index, name in enumerate(expected_name)
+            }
+
+        expected_values = {
+            name: LazyValue(
+                repeat_point,
+                value,
+                n_reps=n_reps,
+                label=f"r={n_reps}",
+            )
+            for name, value in expected_values.items()
+        }
 
         data = []
         for combination in combinations:
@@ -235,7 +246,7 @@ class BaseGeometricCaseData(CaseData):
                         label=f"r={n_reps}",
                     )
 
-            new_datum[expected_name] = expected_value_rep
+            new_datum.update(expected_values)
 
             data.append(new_datum)
 
@@ -244,7 +255,7 @@ class BaseGeometricCaseData(CaseData):
     def generate_vectorization_data(
         self,
         arg_names,
-        data_space="total",
+        data_space=None,
         op_name=None,
         expected_name="expected",
         vectorization_type=None,
@@ -255,7 +266,6 @@ class BaseGeometricCaseData(CaseData):
         **values,
     ):
         if op_name is None:
-            # TODO: this might fail now...
             op_name = _get_op_name_from_caller()
 
         arg_names, dependencies, data_generator = self._prepare_generation(
@@ -281,7 +291,7 @@ class BaseGeometricCaseData(CaseData):
         return self._generate_vectorization_data(
             arg_names,
             dependencies,
-            self.data_generator,
+            data_generator,
             expected_func,
             expected_name=expected_name,
             vectorization_type=vectorization_type,
@@ -409,15 +419,6 @@ class FiberBundleCaseData(BaseGeometricCaseData):
 
         return getattr(target, op_name)
 
-    def _random_horizontal_vec(self, base_point, fiber_point):
-        tangent_vec = self.base_space_data_generator.random_tangent_vec(base_point)
-
-        return self.total_space.fiber_bundle.horizontal_lift(
-            tangent_vec,
-            fiber_point=fiber_point,
-            base_point=base_point,
-        )
-
     def _generate_lifted_random_datum(
         self,
         point_name,
@@ -426,16 +427,25 @@ class FiberBundleCaseData(BaseGeometricCaseData):
         n_points=1,
         **values,
     ):
+        def _random_horizontal_vec(data_generator, base_point, fiber_point):
+            tangent_vec = data_generator.random_tangent_vec(base_point)
+
+            return self.total_space.fiber_bundle.horizontal_lift(
+                tangent_vec,
+                fiber_point=fiber_point,
+                base_point=base_point,
+            )
+
         datum = dict(values)
 
         base_space_point = LazyValue(
-            self.base_space_data_generator.random_point,
+            _random_point,
+            self.base_space_data_generator,
             n_points,
             label=f"n={n_points}",
         )
-
         fiber_point = LazyValue(
-            self.total_space.fiber_bundle.lift,
+            lambda point: self.total_space.fiber_bundle.lift(point),
             base_space_point,
             label=f"n={n_points}",
         )
@@ -444,7 +454,8 @@ class FiberBundleCaseData(BaseGeometricCaseData):
 
         for name in horizontal_names:
             datum[name] = LazyValue(
-                self._random_horizontal_vec,
+                _random_horizontal_vec,
+                self.base_space_data_generator,
                 base_space_point,
                 fiber_point,
                 label=f"n={n_points}",
@@ -452,7 +463,8 @@ class FiberBundleCaseData(BaseGeometricCaseData):
 
         for name in tangent_names:
             datum[name] = LazyValue(
-                self.total_space_data_generator.random_tangent_vec,
+                _random_tangent_vec,
+                self.total_space_data_generator,
                 fiber_point,
                 label=f"n={n_points}",
             )
@@ -503,6 +515,14 @@ class GeometricMapCaseData(BaseGeometricCaseData):
             raise ValueError(f"Unknown operation target {op_target!r}.")
 
         return getattr(target, op_name)
+
+
+def _random_point(data_generator, n_points):
+    return data_generator.random_point(n_points)
+
+
+def _random_tangent_vec(data_generator, base_point):
+    return data_generator.random_tangent_vec(base_point)
 
 
 def _get_vectorization_combinations(n_args, vectorization_type):
