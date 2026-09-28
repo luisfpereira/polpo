@@ -4,7 +4,7 @@ from polpo.surface_mesh.ops.topology import (
     compute_one_ring_neighbors,
     compute_vertex_adjacency,
 )
-from polpo.testing.data import DataCase
+from polpo.testing.data import CaseData
 from polpo.testing.parametrizers import DataBasedParametrizer
 
 
@@ -23,7 +23,7 @@ class TopologyMethodsTestCase:
         assert neighbors == expected
 
 
-class TopologyMethodsTestData(DataCase):
+class TopologyMethodsTestData(CaseData):
     def vertex_adjacency_test_data(self):
         faces_0 = np.array([[0, 1, 2]])
         adj_0 = np.array(

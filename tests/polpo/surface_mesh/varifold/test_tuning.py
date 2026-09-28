@@ -2,7 +2,7 @@ import geomstats.backend as gs
 import numpy as np
 
 from polpo.surface_mesh.varifold.tuning import SigmaFromScale
-from polpo.testing.data import DataCase
+from polpo.testing.data import CaseData
 from polpo.testing.parametrizers import DataBasedParametrizer
 
 
@@ -13,7 +13,7 @@ class SigmaFromScaleTestCase:
         np.testing.assert_allclose(sigma, expected, atol=atol)
 
 
-class SigmaFromScaleTestData(DataCase):
+class SigmaFromScaleTestData(CaseData):
     def sigma_test_data(self):
         return [
             (

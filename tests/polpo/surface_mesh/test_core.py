@@ -8,8 +8,8 @@ from polpo.ext.trimesh.surface_mesh import TrimeshSurface
 from polpo.surface_mesh.core import Surface
 from polpo.surface_mesh.generation.blob import create_blob
 from polpo.surface_mesh.ops.topology import normalize_edges
-from polpo.testing.data import DataCase, LazyValue
-from polpo.testing.decorators import materialize_lazy_values
+from polpo.testing.data import LazyCaseData
+from polpo.testing.lazy import LazyValue
 from polpo.testing.parametrizers import DataBasedParametrizer
 
 ATOL = 1e-6
@@ -73,7 +73,7 @@ for _name, _atol in {
     )
 
 
-class BlobTestData(DataCase):
+class BlobTestData(LazyCaseData):
     """Test data for surface mesh representations."""
 
     def __init__(self, resolution=10):
@@ -97,9 +97,6 @@ class BlobTestData(DataCase):
             pv_surface,
             trimesh_mesh,
         ]
-
-    def get_decorators(self):
-        return [materialize_lazy_values]
 
     def get_data_methods(self):
         methods = super().get_data_methods()

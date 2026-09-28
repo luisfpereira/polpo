@@ -10,8 +10,8 @@ from polpo.surface_mesh.scale import (
     surface_centroid_to_farthest_vertex,
     vertex_centroid_to_farthest_vertex,
 )
-from polpo.testing.data import DataCase, LazyValue
-from polpo.testing.decorators import materialize_lazy_values
+from polpo.testing.data import LazyCaseData
+from polpo.testing.lazy import LazyValue
 from polpo.testing.parametrizers import DataBasedParametrizer
 
 
@@ -31,7 +31,7 @@ class ScaleMethodsTestCase:
         np.testing.assert_allclose(value, expected, atol=atol)
 
 
-class RegularTetrahedronTestData(DataCase):
+class RegularTetrahedronTestData(LazyCaseData):
     """Test data based on a regular tetrahedron."""
 
     def __init__(self, edge_length=2.0):
@@ -42,9 +42,6 @@ class RegularTetrahedronTestData(DataCase):
             lambda edge_length: Surface(*create_regular_tetrahedron(edge_length)),
             edge_length=edge_length,
         )
-
-    def get_decorators(self):
-        return [materialize_lazy_values]
 
     def median_edge_length_test_data(self):
         expected = self.edge_length
