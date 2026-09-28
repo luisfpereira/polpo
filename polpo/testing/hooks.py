@@ -3,10 +3,27 @@ import pytest
 from .execution import set_execution_key
 
 
+def _make_hashable(value):
+    try:
+        hash(value)
+    except TypeError:
+        return id(value)
+
+    return value
+
+
 def _get_execution_key_from_item(item):
-    repeat = 0
     callspec = getattr(item, "callspec", None)
 
+    fixture_params = ()
+    if callspec is not None:
+        fixture_params = tuple(
+            (name, _make_hashable(callspec.params[name]))
+            for name, scope in callspec._arg2scope.items()
+            if scope.value != "function"
+        )
+
+    repeat = 0
     if callspec is not None:
         repeat = callspec.params.get(
             "__pytest_repeat_step_number",
@@ -15,7 +32,7 @@ def _get_execution_key_from_item(item):
 
     rerun = getattr(item, "execution_count", 1)
 
-    return repeat, rerun
+    return fixture_params, repeat, rerun
 
 
 def pytest_runtest_call(item):
