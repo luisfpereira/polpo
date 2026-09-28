@@ -355,6 +355,8 @@ class LddmmToGlobal:
 
         self._reset()
 
+        self.params_["keys"] = nested_meshes.nested_keys()
+
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.results_["status"] = "running"
 

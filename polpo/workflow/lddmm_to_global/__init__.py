@@ -1,7 +1,7 @@
 import polpo.utils as _putils
 
-HAS_DEFORMETRICA = _putils.has_package("deformetrica")
+from .output import LddmmToGlobalMultiOutput, LddmmToGlobalOutput
 
-if HAS_DEFORMETRICA:
+if _putils.has_package("deformetrica"):
     # to allow post without deformetrica
     from ._protocol import LddmmToGlobal
