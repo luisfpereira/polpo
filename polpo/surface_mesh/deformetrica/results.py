@@ -5,7 +5,7 @@ from abc import ABC
 import numpy as np
 
 import polpo.ext.deformetrica.io as pdefoio
-from polpo.io.json import load_json, save_json
+from polpo.io.json import dump_json, load_json
 from polpo.surface_mesh.deformetrica.io import write_vtk_polydata
 
 from .representations import ControlPoints, Flow, Momenta, Point, TangentVector
@@ -32,7 +32,7 @@ class _Result(ABC):
         if cache is not None:
             params["cache"] = cache
 
-        return save_json(self.params_path, params)
+        return dump_json(params, self.params_path)
 
     def read_params(self):
         """Read serialized result parameters.

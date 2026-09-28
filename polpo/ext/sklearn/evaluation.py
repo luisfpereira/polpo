@@ -3,13 +3,15 @@
 import numpy as np
 from sklearn.model_selection import LeaveOneGroupOut
 
-from polpo.io.json import load_json, save_json
+from polpo.io.json import dump_json, load_json
 from polpo.sklearn.model_selection import (
     assemble_predictions,
     cross_fit,
     predict_folds,
 )
 from polpo.sklearn.truncation import truncate
+
+# TODO: replace distance term
 
 
 class TruncatedCVEvaluator:
@@ -172,19 +174,19 @@ class TruncatedCVEvaluationResult:
             **self.distances,
         )
 
-        save_json(
-            results_dir / "params.json",
+        dump_json(
             {
                 "keys": self.keys,
                 "truncations": self.truncations,
                 "held_out_groups": self.held_out_groups,
             },
+            results_dir / "params.json",
         )
 
         if self.fit_diagnostics is not None:
-            save_json(
-                results_dir / "fit_diagnostics.json",
+            dump_json(
                 self.fit_diagnostics,
+                results_dir / "fit_diagnostics.json",
             )
 
         return self

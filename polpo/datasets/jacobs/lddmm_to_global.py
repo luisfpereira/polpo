@@ -87,13 +87,13 @@ def prepare_inputs(
     key_codec = NestedKeyMap.from_dataset(dataset)
 
     metadata["key_map"] = key_codec.to_dict()
-    mapped_atlas_keys = metadata["atlas_keys"] = key_codec.encode_nested_keys(
+    mapped_atlas_keys = metadata["atlas_keys"] = key_codec.map_keys(
         atlas_keys.inner_keys()
     )
 
     known_correspondences = True if derivative == "enigma" else False
     return (
-        dataset.map_keys(key_codec.encode),
+        dataset.map_keys(key_codec.map),
         mapped_atlas_keys,
         known_correspondences,
         metadata,

@@ -1,45 +1,54 @@
-# TODO: create script to check registration time with no decimation
-
-import json
 import traceback
-from datetime import datetime, timezone
 
 import numpy as np
 
 from polpo.dataset import Dataset, NestedDataset
-from polpo.ext.pyvista.surface_mesh import PvSurface
-from polpo.pipeline.mesh.registration import RigidAlignment
+from polpo.io.json import dump_json
 from polpo.surface_mesh.deformetrica import FrechetMean, LddmmMetric, Point
-from polpo.surface_mesh.varifold.tuning.geometry_based import SigmaFromLengths
-from polpo.time import Timer
-
-# TODO: add restart
+from polpo.surface_mesh.registration import SurfaceRigidRegistration
+from polpo.surface_mesh.varifold.tuning import SigmaFromScale
+from polpo.time import Timer, utc_now
 
 
 class LddmmToGlobal:
-    PROTOCOL_VERSION = "0.2.0"
+    """Run the LDDMM-to-global shape representation protocol.
 
-    DEFAULT_REGISTRATION_KWARGS = {
-        "regularisation": 1.0,
-        "max_iter": 2000,
-        "freeze_control_points": False,
-        "metric": "varifold",
-        "tol": 1e-16,
-    }
+    Parameters
+    ----------
+    known_correspondences : bool
+        Whether meshes have known vertex correspondences.
+    results_dir : path-like
+        Directory where protocol outputs and intermediate results are stored.
+    ratio_kernel : float
+        Ratio between the deformation-kernel width and the tuned attachment-kernel width.
+    discretization_ratio : float
+        Ratio controlling the attachment-kernel scale relative to mesh discretization.
+    object_ratio : float
+        Ratio controlling the attachment-kernel scale relative to object size.
+    regularization : float
+        Regularization parameter controlling the relative weight of the attachment term.
+    max_iter : int
+        Maximum number of registration optimization iterations.
+    tol : float
+        Convergence tolerance for registration optimization.
+    random_state : int
+        Seed controlling random operations in the protocol.
+    metadata : dict
+        Metadata persisted with the protocol results.
+    """
 
-    DEFAULT_FRECHET_MEAN_KWARGS = {
-        "initial_step_size": 1e-1,
-    }
+    PROTOCOL_VERSION = "0.3.0"
 
     def __init__(
         self,
         known_correspondences,
         results_dir,
         ratio_kernel=1.5,
-        ratio_charlen_mesh=2.0,
-        ratio_charlen=0.25,
-        registration_kwargs=None,
-        frechet_mean_kwargs=None,
+        discretization_ratio=2.0,
+        object_ratio=0.25,
+        regularization=1.0,
+        max_iter=500,
+        tol=1e-5,
         random_state=None,
         metadata=None,
     ):
@@ -49,26 +58,20 @@ class LddmmToGlobal:
         self.results_dir = results_dir
 
         self.ratio_kernel = ratio_kernel
-        self.ratio_charlen = ratio_charlen
-        self.ratio_charlen_mesh = ratio_charlen_mesh
+        self.object_ratio = object_ratio
+        self.discretization_ratio = discretization_ratio
 
-        self.registration_kwargs = {
-            **self.DEFAULT_REGISTRATION_KWARGS,
-            **(registration_kwargs or {}),
-        }
-        self.frechet_mean_kwargs = {
-            **self.DEFAULT_FRECHET_MEAN_KWARGS,
-            **(frechet_mean_kwargs or {}),
-        }
+        self.regularization = regularization
+        self.max_iter = max_iter
+        self.tol = tol
 
-        self.metadata = metadata or {}
+        self.metadata = dict(metadata or {})
         self.random_state = random_state
 
-        self.reset()
+        self._reset()
 
-    def reset(self):
-        self.timer.reset()
-
+    def _reset(self):
+        """Reset runtime state for a new protocol run."""
         seed_sequence = np.random.SeedSequence(self.random_state)
         self.rng_ = np.random.default_rng(seed_sequence)
 
@@ -81,49 +84,74 @@ class LddmmToGlobal:
             },
             "kernel_tuning": {
                 "ratio_kernel": self.ratio_kernel,
-                "ratio_charlen_mesh": self.ratio_charlen_mesh,
-                "ratio_charlen": self.ratio_charlen,
+                "discretization_ratio": self.discretization_ratio,
+                "object_ratio": self.object_ratio,
             },
-            "registration": self.registration_kwargs,
-            "frechet_mean": self.frechet_mean_kwargs,
+            "metric": {
+                "regularization": self.regularization,
+                "max_iter": self.max_iter,
+                "tol": self.tol,
+            },
         }
 
         self.results_ = {
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": utc_now(),
             "random_state": int(seed_sequence.entropy),
         }
 
-    def preprocess_meshes(self, data):  # TODO: update it in varifold
-        # data : polpo.dataset.Dataset
+    def preprocess_meshes(self, data):
+        """Rigidly align meshes to a randomly selected target.
 
+        Parameters
+        ----------
+        data : Dataset
+            Surface meshes to align.
+
+        Returns
+        -------
+        aligned : Dataset
+            Rigidly aligned surface meshes.
+        """
         # rigidly aligns all the meshes against a randomly chosen target
         with self.timer("prep"):
-            selected_mesh = data.sample(random_state=self.rng_)
-            aligner = RigidAlignment(
-                target=selected_mesh.values_list()[0],
-                known_correspondences=self.known_correspondences,
-            )
+            target_mesh = data.sample(random_state=self.rng_)
 
-            data_ = data.transform(aligner).map_values(PvSurface)
+            registration = SurfaceRigidRegistration(
+                known_correspondences=self.known_correspondences
+            ).against_same_target(target_mesh.values_list()[0])
+
+            data_ = data.transform(registration)
 
         self.results_["rigid_alignment"] = {
-            "key": selected_mesh.keys_list()[0],
+            "key": target_mesh.keys_list()[0],
         }
 
         return data_
 
     def tune_kernel(self, nested_meshes):
-        # select varifold kernel using a randomly selected mesh per subject
+        """Estimate kernel widths using one randomly selected mesh per subject.
+
+        Parameters
+        ----------
+        nested_meshes : NestedDataset
+            Nested dataset of aligned surface meshes.
+
+        Returns
+        -------
+        sigma_vel : float
+            Width of the deformation kernel.
+        sigma_var : float
+            Width of the varifold attachment kernel.
+        """
         with self.timer("tuning"):
-            sigma_search = SigmaFromLengths(
-                ratio_charlen_mesh=self.ratio_charlen_mesh,
-                ratio_charlen=self.ratio_charlen,
+            sigma_search = SigmaFromScale(
+                discretization_ratio=self.discretization_ratio,
+                object_ratio=self.object_ratio,
             )
 
             selected_meshes = nested_meshes.sample_inner(random_state=self.rng_)
-            sigma_search.fit(selected_meshes.flatten().values_list())
+            sigma_var = sigma_search(selected_meshes.flatten().values_list())
 
-        sigma_var = sigma_search.sigma_
         sigma_vel = self.ratio_kernel * sigma_var
 
         self.results_["kernel_tuning"] = {
@@ -135,29 +163,80 @@ class LddmmToGlobal:
         return sigma_vel, sigma_var
 
     def instantiate_metric(self, sigma_vel, sigma_var):
-        kwargs = {
-            **self.registration_kwargs,
-            "kernel_width": sigma_vel,
-            "attachment_kernel_width": sigma_var,
-        }
+        """Instantiate the LDDMM metric used by the protocol.
 
-        metric = LddmmMetric(self.results_dir, **kwargs)
+        Parameters
+        ----------
+        sigma_vel : float
+            Width of the deformation kernel.
+        sigma_var : float
+            Width of the varifold attachment kernel.
+
+        Returns
+        -------
+        metric : LddmmMetric
+            Configured LDDMM metric.
+        """
+        metric = LddmmMetric(
+            self.results_dir,
+            kernel_width=sigma_vel,
+            attachment_metric="varifold",
+            attachment_kernel_width=sigma_var,
+        )
+
+        metric.config.set_attachment(
+            noise_std=self.regularization,
+        )
+        metric.config.set_optimization(
+            max_iter=self.max_iter,
+            tol=self.tol,
+        )
 
         self.params_["dirs"] = metric.dir_config.to_dict()
 
         return metric
 
     def meshes_as_points(self, nested_meshes, metric):
+        """Convert surface meshes to LDDMM points.
+
+        Parameters
+        ----------
+        nested_meshes : NestedDataset
+            Nested dataset of surface meshes.
+        metric : LddmmMetric
+            Metric providing the storage configuration.
+
+        Returns
+        -------
+        points : NestedDataset
+            Nested dataset of LDDMM points.
+        """
         return nested_meshes.map_items(
             lambda outer_key, inner_key, mesh: Point(
                 id_=f"{outer_key}-{inner_key}",
-                pv_surface=mesh,
-                dirname=metric.dir_config.meshes_dir,
+                surface=mesh,
+                dirname=metric.dir_config.meshes,
             )
         )
 
     def build_local_atlases(self, nested_points, metric, atlas_keys):
-        estimator = FrechetMean(metric, **self.frechet_mean_kwargs)
+        """Estimate one local atlas per outer dataset key.
+
+        Parameters
+        ----------
+        nested_points : NestedDataset
+            Nested dataset of LDDMM points.
+        metric : LddmmMetric
+            Metric used for atlas estimation.
+        atlas_keys : mapping
+            Inner keys used to estimate each local atlas.
+
+        Returns
+        -------
+        atlases : Dataset
+            Local atlas for each outer key.
+        """
+        estimator = FrechetMean(metric)
 
         with self.timer("local_atlases"):
             atlases = {}
@@ -171,7 +250,21 @@ class LddmmToGlobal:
         return Dataset(atlases)
 
     def build_global_atlas(self, local_atlases, metric):
-        estimator = FrechetMean(metric, **self.frechet_mean_kwargs)
+        """Estimate a global atlas from the local atlases.
+
+        Parameters
+        ----------
+        local_atlases : Dataset
+            Local atlases.
+        metric : LddmmMetric
+            Metric used for atlas estimation.
+
+        Returns
+        -------
+        atlas : Point
+            Global atlas.
+        """
+        estimator = FrechetMean(metric)
 
         with self.timer("global_atlas"):
             estimator.fit(local_atlases.values_list(), "gl")
@@ -179,45 +272,61 @@ class LddmmToGlobal:
         return estimator.estimate_
 
     def register_and_transport(self, nested_points, metric, atlas, local_atlases):
-        self.timer.start("register_and_transport")
+        """Map shapes to the global atlas through parallel transport.
 
-        global_reprs = {}
-        point_a = atlas
-        for outer_key, points in nested_points.items():
-            global_reprs[outer_key] = reprs = {}
-            point_b = local_atlases[outer_key]
+        For each shape, compute its tangent representation at the corresponding
+        local atlas, parallel transport it to the global atlas, and exponentiate
+        the transported tangent vector.
 
-            vec_ba = metric.log(point_a, point_b)
+        Parameters
+        ----------
+        nested_points : NestedDataset
+            Nested dataset of LDDMM points.
+        metric : LddmmMetric
+            Metric used for registration, transport, and shooting.
+        atlas : Point
+            Global atlas.
+        local_atlases : Dataset
+            Local atlas for each outer key.
 
-            for inner_key, point_c in points.items():
-                vec_bc = metric.log(point_c, point_b)
+        Returns
+        -------
+        global_reprs : NestedDataset
+            Shapes represented relative to the global atlas.
+        """
+        with self.timer("register_and_transport"):
+            global_reprs = {}
+            point_a = atlas
+            for outer_key, points in nested_points.items():
+                global_reprs[outer_key] = reprs = {}
+                point_b = local_atlases[outer_key]
 
-                trans_vec_bc = metric.parallel_transport(
-                    vec_bc, point_b, direction=vec_ba
-                )
+                vec_ba = metric.log(point_a, point_b)
 
-                reprs[inner_key] = metric.exp(trans_vec_bc, point_a)
+                for inner_key, point_c in points.items():
+                    vec_bc = metric.log(point_c, point_b)
 
-        self.timer.stop("register_and_transport")
+                    trans_vec_bc = metric.parallel_transport(
+                        vec_bc, point_b, direction=vec_ba
+                    )
+
+                    reprs[inner_key] = metric.exp(trans_vec_bc, point_a)
 
         return NestedDataset(global_reprs)
 
-    def write(self):
-        with open(self.results_dir / "params.json", "w") as file:
-            json.dump(self.params_, file, indent=2)
-
-        with open(self.results_dir / "results.json", "w") as file:
-            json.dump(self.results_, file, indent=2)
-
-        with open(self.results_dir / "time.json", "w") as file:
-            json.dump(self.timer.as_dict(), file, indent=2)
+    def _write(self):
+        """Write protocol parameters, results, and timings to disk."""
+        dump_json(self.params_, self.results_dir / "params.json")
+        dump_json(self.results_, self.results_dir / "results.json")
+        dump_json(self.timer.as_dict(), self.results_dir / "time.json")
 
     def _record_failure(self, error):
+        """Record information about a protocol failure."""
         self.results_.update(
             {
                 "status": "failed",
                 "failed_stage": self.current_stage_,
-                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": utc_now(),
                 "error": {
                     "type": type(error).__name__,
                     "message": str(error),
@@ -227,17 +336,30 @@ class LddmmToGlobal:
         )
 
     def run(self, nested_meshes, atlas_keys):
-        # nested_meshes: dict or polpo.dataset.NestedDataset
+        """Run the LDDMM-to-global shape representation protocol.
+
+        Parameters
+        ----------
+        nested_meshes : NestedDataset or dict
+            Nested dataset of input surface meshes.
+        atlas_keys : mapping
+            Inner keys used to estimate each local atlas.
+
+        Returns
+        -------
+        self : LddmmToGlobal
+            Fitted protocol with computed atlases and global representations.
+        """
         if isinstance(nested_meshes, dict):
             nested_meshes = NestedDataset(nested_meshes)
 
-        self.reset()
+        self._reset()
 
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.results_["status"] = "running"
 
         try:
-            with self.timer("run"):
+            with self.timer():
                 self.current_stage_ = "preprocessing"
                 nested_meshes_ = self.preprocess_meshes(nested_meshes.flatten()).nest()
 
@@ -266,13 +388,13 @@ class LddmmToGlobal:
                 self.current_stage_ = "completed"
         except Exception as error:
             self._record_failure(error)
-            self.write()
+            self._write()
             raise
 
-        self.results_["finished_at"] = datetime.now(timezone.utc).isoformat()
+        self.results_["finished_at"] = utc_now()
         self.results_["status"] = "completed"
 
-        self.write()
+        self._write()
 
         self.metric_ = metric
         self.local_atlases_ = local_atlases

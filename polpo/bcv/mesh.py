@@ -9,7 +9,7 @@ from polpo.bcv.model_selection import (
     select_rank_one_se_grouped,
 )
 from polpo.dataset import Dataset
-from polpo.io.json import load_json, save_json
+from polpo.io.json import dump_json, load_json
 from polpo.seed import resolve_seed
 from polpo.surface_mesh.partition import (
     labels_to_vertex_partitions,
@@ -199,8 +199,7 @@ class GroupedMeshRankSelectionResult:
 
         np.save(results_dir / "errors.npy", self.errors)
 
-        save_json(
-            results_dir / "params.json",
+        dump_json(
             {
                 "n_parts": self.n_parts,
                 "n_groups": self.n_groups,
@@ -208,6 +207,7 @@ class GroupedMeshRankSelectionResult:
                 "seed": self.seed,
                 "keys": self.keys,
             },
+            results_dir / "params.json",
         )
 
         return self

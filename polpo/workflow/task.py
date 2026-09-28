@@ -3,7 +3,7 @@ import platform
 from abc import ABC
 from pathlib import Path
 
-from polpo.io.json import load_json, save_json
+from polpo.io.json import dump_json, load_json
 from polpo.time import Timer, utc_now
 
 
@@ -138,7 +138,7 @@ class TaskRunner(ABC):
         """Write the current runner state to the manifest."""
         self.manifest_["resolved"] = dict(self.resolved_)
         self.manifest_["updated_at"] = utc_now()
-        save_json(self.manifest_path, self.manifest_)
+        dump_json(self.manifest_, self.manifest_path)
 
     def _is_complete(self, task):
         """Return whether a task is marked as completed."""
