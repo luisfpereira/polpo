@@ -1,6 +1,8 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from .lazy import materialize_lazy_values
+
 
 @dataclass(frozen=True)
 class TestDatum:
@@ -79,3 +81,8 @@ class CaseData:
 
     def with_values(self, data, **values):
         return [self._with_values(datum, **values) for datum in data]
+
+
+class LazyCaseData(CaseData):
+    def get_decorators(self):
+        return [materialize_lazy_values]

@@ -8,11 +8,11 @@ from geomstats.test.random import get_data_generator
 from geomstats.vectorization import repeat_point
 
 from .composition import CompositeGeometricCaseData
-from .data import CaseData, TestDatum
-from .lazy import LazyValue, materialize_lazy_values
+from .data import LazyCaseData, TestDatum
+from .lazy import LazyValue
 
 
-class BaseGeometricCaseData(CaseData):
+class BaseGeometricCaseData(LazyCaseData):
     def __init__(
         self,
         point_counts=None,
@@ -33,9 +33,6 @@ class BaseGeometricCaseData(CaseData):
 
     def __add__(self, other):
         return CompositeGeometricCaseData(self, other)
-
-    def get_decorators(self):
-        return [materialize_lazy_values]
 
     def get_data_methods(self):
         return self._get_data_methods(

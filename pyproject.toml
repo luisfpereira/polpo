@@ -147,4 +147,6 @@ markers = [
     "vec: vectorization tests.",
     "ignore: deselect tests.",
     "random: tests that use randomized data.",
+    "sanity: sanity checks that verify basic expected behavior",
+    "smoke: checks that code runs without error",
 ]
