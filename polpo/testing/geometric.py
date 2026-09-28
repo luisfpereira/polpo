@@ -475,8 +475,9 @@ class FiberBundleCaseData(BaseGeometricCaseData):
 class GeometricMapCaseData(BaseGeometricCaseData):
     def __init__(
         self,
-        space=None,
+        domain_space=None,
         image_space=None,
+        map_=None,
         point_counts=None,
         time_counts=None,
         excluded_methods=(),
@@ -487,17 +488,23 @@ class GeometricMapCaseData(BaseGeometricCaseData):
             excluded_methods=excluded_methods,
         )
 
-        self.space = space
+        self.domain_space = domain_space
         self.image_space = image_space
+        self.map = map_
 
-        self.data_generator = LazyValue(lambda: get_data_generator(self.space))
-        self.image_data_generator = LazyValue(
+        self.domain_space_data_generator = LazyValue(
+            lambda: get_data_generator(self.domain_space)
+        )
+        self.image_space_data_generator = LazyValue(
             lambda: get_data_generator(self.image_space)
         )
 
     def _get_data_generator(self, data_space=None):
-        if data_space is None or data_space == "space":
-            return self.data_generator
+        if data_space is None:
+            data_space = "domain"
+
+        if data_space == "domain":
+            return self.domain_space_data_generator
 
         if data_space == "image":
             return self.image_space_data_generator
@@ -505,11 +512,17 @@ class GeometricMapCaseData(BaseGeometricCaseData):
         raise ValueError(f"Unknown space {data_space!r}.")
 
     def _get_operation(self, op_name, op_target="space"):
-        if op_target is None or op_target == "space":
-            target = self.space
+        if op_target is None:
+            op_target = "map"
 
-        elif op_target == "metric":
-            target = self.space.metric
+        if op_target == "domain":
+            target = self.domain_space
+
+        elif op_target == "image":
+            target = self.image_space
+
+        elif op_target == "map":
+            target = self.map
 
         else:
             raise ValueError(f"Unknown operation target {op_target!r}.")
@@ -630,9 +643,13 @@ def _resolve_vectorization_type(
 
 
 def _is_tangent_arg(name):
-    return name.startswith(
+    is_tangent = name.startswith(
         ("tangent_vec", "vector", "vec", "initial_tangent_vec", "direction")
     )
+    if is_tangent:
+        return is_tangent
+
+    return name.endswith("tangent_vec")
 
 
 def _get_op_name_from_caller():
