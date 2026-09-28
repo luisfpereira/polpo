@@ -2,10 +2,8 @@ import fast_simplification
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
-from polpo.pipeline.base import PreprocessingStep
 
-
-class FastSimplificationDecimator(PreprocessingStep):
+class FastSimplificationDecimator:
     def __init__(self, target_reduction=0.25, keep_colors=True):
         super().__init__()
         self.target_reduction = target_reduction

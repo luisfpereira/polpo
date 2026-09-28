@@ -1,19 +1,17 @@
 import skshapes as sks
 
-from polpo.pipeline.base import PreprocessingStep
 
-
-class SksFromPv(PreprocessingStep):
+class SksFromPv:
     def __call__(self, poly_data):
         return sks.PolyData(poly_data)
 
 
-class PvFromSks(PreprocessingStep):
+class PvFromSks:
     def __call__(self, poly_data):
         return poly_data.to_pyvista()
 
 
-class SksRigidRegistration(PreprocessingStep):
+class SksRigidRegistration:
     def __init__(self, loss=None, n_iter=2, verbose=False):
         if loss is None:
             loss = sks.NearestNeighborsLoss()

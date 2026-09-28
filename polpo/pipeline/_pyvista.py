@@ -12,58 +12,8 @@ from polpo.ext.pyvista.filter import (  # noqa: F401
     PvSubsetSplitter,
 )
 from polpo.ext.pyvista.io import PvReader  # noqa: F401
-from polpo.pipeline.base import PreprocessingStep, RegistrationStep
-from polpo.pipeline.mesh._register import register_vertices_attr
+from polpo.pipeline.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
-
-register_vertices_attr(pv.PolyData, "points")
-
-
-class PvAlign(RegistrationStep):
-    """Align a dataset to another with ICP.
-
-    https://docs.pyvista.org/api/core/_autosummary/pyvista.datasetfilters.align
-    """
-
-    def __init__(
-        self,
-        target=None,
-        max_landmarks=100,
-        max_mean_distance=1e-05,
-        max_iterations=500,
-        check_mean_distance=True,
-        start_by_matching_centroids=True,
-        return_matrix=False,
-    ):
-        super().__init__(target=target)
-        self.max_landmarks = max_landmarks
-        self.max_mean_distance = max_mean_distance
-        self.max_iterations = max_iterations
-        self.check_mean_distance = check_mean_distance
-        self.start_by_matching_centroids = start_by_matching_centroids
-        self.return_matrix = return_matrix
-
-    def __call__(self, data):
-        """Apply step.
-
-        Parameters
-        ----------
-        data : pv.Polydata or tuple[pv.PolyData; 2]
-            (source, target) meshes.
-
-        Returns
-        -------
-        mesh : pv.PolyData
-            Source aligned to target.
-        matrix : numpy.ndarray
-            Transform matrix to transform the input dataset to the target dataset.
-        """
-        source, target = self._get_source_and_target(data)
-
-        return source.align(
-            target,
-            **params_to_kwargs(self, ignore=("target",)),
-        )
 
 
 class PvSmoothTaubin(PreprocessingStep):

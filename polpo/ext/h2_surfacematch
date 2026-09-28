@@ -1,10 +1,8 @@
 import H2_SurfaceMatch.H2_match
 import H2_SurfaceMatch.utils.utils
 
-from polpo.pipeline.base import PreprocessingStep
 
-
-class H2MeshDecimator(PreprocessingStep):
+class H2MeshDecimator:
     def __init__(self, decimation_factor=10.0):
         super().__init__()
         self.decimation_factor = decimation_factor
@@ -31,7 +29,7 @@ class H2MeshDecimator(PreprocessingStep):
         ]
 
 
-class H2MeshAligner(PreprocessingStep):
+class H2MeshAligner:
     def __init__(
         self,
         a0=0.01,
