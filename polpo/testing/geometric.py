@@ -46,6 +46,38 @@ class BaseGeometricCaseData(CaseData):
             suffix="_vec_test_data",
         )
 
+    def _get_data_generator(self, data_space=None):
+        raise NotImplementedError
+
+    def _prepare_generation(self, arg_names, dependencies=None, data_space=None):
+        data_generator = self._get_data_generator(data_space)
+        arg_names, dependencies = self._resolve_arg_names(
+            arg_names,
+            dependencies,
+        )
+
+        return arg_names, dependencies, data_generator
+
+    def _resolve_arg_names(self, arg_names, dependencies=None):
+        if isinstance(arg_names, str):
+            arg_names = (arg_names,)
+
+        point_names = [name for name in arg_names if "point" in name]
+        tangent_names = [name for name in arg_names if _is_tangent_arg(name)]
+
+        ignored = set(arg_names) - set(point_names) - set(tangent_names)
+        if ignored:
+            raise ValueError(f"Unsupported argument names: {sorted(ignored)}.")
+
+        if dependencies is None:
+            dependencies = {}
+
+            if len(point_names) == 1:
+                point_name = point_names[0]
+                dependencies.update({name: point_name for name in tangent_names})
+
+        return arg_names, dependencies
+
     def _generate_random_data(
         self,
         arg_names,
@@ -105,6 +137,28 @@ class BaseGeometricCaseData(CaseData):
                 )
 
         return datum
+
+    def generate_random_data(
+        self,
+        arg_names,
+        data_space=None,
+        dependencies=None,
+        exclude_single=False,
+        **values,
+    ):
+        arg_names, dependencies, data_generator = self._prepare_generation(
+            arg_names,
+            dependencies,
+            data_space,
+        )
+
+        return self._generate_random_data(
+            arg_names,
+            dependencies,
+            data_generator,
+            exclude_single=exclude_single,
+            **values,
+        )
 
     def _generate_vectorization_data(
         self,
@@ -187,25 +241,53 @@ class BaseGeometricCaseData(CaseData):
 
         return data
 
-    def _resolve_arg_names(self, arg_names, dependencies=None):
-        if isinstance(arg_names, str):
-            arg_names = (arg_names,)
+    def generate_vectorization_data(
+        self,
+        arg_names,
+        data_space="total",
+        op_name=None,
+        expected_name="expected",
+        vectorization_type=None,
+        dependencies=None,
+        op_evaluator=None,
+        n_reps=2,
+        op_target=None,
+        **values,
+    ):
+        if op_name is None:
+            # TODO: this might fail now...
+            op_name = _get_op_name_from_caller()
 
-        point_names = [name for name in arg_names if "point" in name]
-        tangent_names = [name for name in arg_names if _is_tangent_arg(name)]
+        arg_names, dependencies, data_generator = self._prepare_generation(
+            arg_names,
+            dependencies,
+            # TODO: space to data_space
+            data_space,
+        )
 
-        ignored = set(arg_names) - set(point_names) - set(tangent_names)
-        if ignored:
-            raise ValueError(f"Unsupported argument names: {sorted(ignored)}.")
+        if op_evaluator is None:
+            op_evaluator = lambda op, **kwargs: op(**kwargs)
 
-        if dependencies is None:
-            dependencies = {}
+        arg_names, dependencies = self._resolve_arg_names(
+            arg_names,
+            dependencies,
+        )
 
-            if len(point_names) == 1:
-                point_name = point_names[0]
-                dependencies.update({name: point_name for name in tangent_names})
+        expected_func = lambda **kwargs: op_evaluator(
+            self._get_operation(op_name, op_target),
+            **kwargs,
+        )
 
-        return arg_names, dependencies
+        return self._generate_vectorization_data(
+            arg_names,
+            dependencies,
+            self.data_generator,
+            expected_func,
+            expected_name=expected_name,
+            vectorization_type=vectorization_type,
+            n_reps=n_reps,
+            **values,
+        )
 
 
 class GeometricCaseData(BaseGeometricCaseData):
@@ -225,6 +307,24 @@ class GeometricCaseData(BaseGeometricCaseData):
         self.space = space
         self.data_generator = LazyValue(lambda: get_data_generator(self.space))
 
+    def _get_data_generator(self, data_space=None):
+        if data_space is not None:
+            raise ValueError(f"Unknown space {data_space!r}.")
+
+        return self.data_generator
+
+    def _get_operation(self, op_name, op_target="space"):
+        if op_target is None or op_target == "space":
+            target = self.space
+
+        elif op_target == "metric":
+            target = self.space.metric
+
+        else:
+            raise ValueError(f"Unknown operation target {op_target!r}.")
+
+        return getattr(target, op_name)
+
     def generate_random_data(
         self,
         arg_names,
@@ -232,15 +332,9 @@ class GeometricCaseData(BaseGeometricCaseData):
         exclude_single=False,
         **values,
     ):
-        arg_names, dependencies = self._resolve_arg_names(
+        return super().generate_random_data(
             arg_names,
-            dependencies,
-        )
-
-        return self._generate_random_data(
-            arg_names,
-            dependencies,
-            self.data_generator,
+            dependencies=dependencies,
             exclude_single=exclude_single,
             **values,
         )
@@ -257,33 +351,16 @@ class GeometricCaseData(BaseGeometricCaseData):
         on_metric=False,
         **values,
     ):
-        if op_name is None:
-            op_name = _get_op_name_from_caller()
-
-        if op_evaluator is None:
-            op_evaluator = lambda op, **kwargs: op(**kwargs)
-
-        arg_names, dependencies = self._resolve_arg_names(
+        return super().generate_vectorization_data(
             arg_names,
-            dependencies,
-        )
-
-        expected_func = lambda **kwargs: op_evaluator(
-            getattr(
-                self.space.metric if on_metric else self.space,
-                op_name,
-            ),
-            **kwargs,
-        )
-
-        return self._generate_vectorization_data(
-            arg_names,
-            dependencies,
-            self.data_generator,
-            expected_func,
+            data_space=None,
+            op_name=op_name,
             expected_name=expected_name,
             vectorization_type=vectorization_type,
+            dependencies=dependencies,
+            op_evaluator=op_evaluator,
             n_reps=n_reps,
+            op_target="metric" if on_metric else "space",
             **values,
         )
 
@@ -314,74 +391,23 @@ class FiberBundleCaseData(BaseGeometricCaseData):
             lambda: get_data_generator(self.base_space)
         )
 
-    def _get_data_generator(self, space):
-        if space == "base":
-            return self.base_space_data_generator
-
-        if space == "total":
+    def _get_data_generator(self, data_space=None):
+        if data_space is None or data_space == "total":
             return self.total_space_data_generator
 
-        raise ValueError(f"Unknown ``space`` {space}")
+        if data_space == "base":
+            return self.base_space_data_generator
 
-    def generate_random_data(
-        self,
-        arg_names,
-        space="total",
-        dependencies=None,
-        exclude_single=False,
-        **values,
-    ):
-        data_generator = self._get_data_generator(space)
+        raise ValueError(f"Unknown ``space`` {data_space}")
 
-        arg_names, dependencies = self._resolve_arg_names(
-            arg_names,
-            dependencies,
-        )
+    def _get_operation(self, op_name, op_target="bundle"):
+        if op_target is None or op_target == "bundle":
+            target = self.total_space.fiber_bundle
 
-        return self._generate_random_data(
-            arg_names,
-            dependencies,
-            data_generator,
-            exclude_single=exclude_single,
-            **values,
-        )
+        else:
+            raise ValueError(f"Unknown operation target {op_target!r}.")
 
-    def generate_vectorization_data(
-        self,
-        arg_names,
-        space="total",
-        op_name=None,
-        expected_name="expected",
-        vectorization_type=None,
-        dependencies=None,
-        n_reps=2,
-        **values,
-    ):
-        data_generator = self._get_data_generator(space)
-
-        if op_name is None:
-            op_name = _get_op_name_from_caller()
-
-        arg_names, dependencies = self._resolve_arg_names(
-            arg_names,
-            dependencies,
-        )
-
-        expected_func = lambda **kwargs: getattr(
-            self.total_space.fiber_bundle,
-            op_name,
-        )(**kwargs)
-
-        return self._generate_vectorization_data(
-            arg_names,
-            dependencies,
-            data_generator,
-            expected_func,
-            expected_name=expected_name,
-            vectorization_type=vectorization_type,
-            n_reps=n_reps,
-            **values,
-        )
+        return getattr(target, op_name)
 
     def _random_horizontal_vec(self, base_point, fiber_point):
         tangent_vec = self.base_space_data_generator.random_tangent_vec(base_point)
@@ -432,6 +458,51 @@ class FiberBundleCaseData(BaseGeometricCaseData):
             )
 
         return datum
+
+
+class GeometricMapCaseData(BaseGeometricCaseData):
+    def __init__(
+        self,
+        space=None,
+        image_space=None,
+        point_counts=None,
+        time_counts=None,
+        excluded_methods=(),
+    ):
+        super().__init__(
+            point_counts=point_counts,
+            time_counts=time_counts,
+            excluded_methods=excluded_methods,
+        )
+
+        self.space = space
+        self.image_space = image_space
+
+        self.data_generator = LazyValue(lambda: get_data_generator(self.space))
+        self.image_data_generator = LazyValue(
+            lambda: get_data_generator(self.image_space)
+        )
+
+    def _get_data_generator(self, data_space=None):
+        if data_space is None or data_space == "space":
+            return self.data_generator
+
+        if data_space == "image":
+            return self.image_space_data_generator
+
+        raise ValueError(f"Unknown space {data_space!r}.")
+
+    def _get_operation(self, op_name, op_target="space"):
+        if op_target is None or op_target == "space":
+            target = self.space
+
+        elif op_target == "metric":
+            target = self.space.metric
+
+        else:
+            raise ValueError(f"Unknown operation target {op_target!r}.")
+
+        return getattr(target, op_name)
 
 
 def _get_vectorization_combinations(n_args, vectorization_type):
@@ -545,10 +616,14 @@ def _is_tangent_arg(name):
 
 
 def _get_op_name_from_caller():
-    caller_name = inspect.currentframe().f_back.f_back.f_code.co_name
-
     suffix = "_vec_test_data"
-    if not caller_name.endswith(suffix):
-        raise ValueError("Cannot infer operation name from " f"{caller_name!r}.")
 
-    return caller_name.removesuffix(suffix)
+    frame = inspect.currentframe().f_back
+    while frame is not None:
+        caller_name = frame.f_code.co_name
+        if caller_name.endswith(suffix):
+            return caller_name.removesuffix(suffix)
+
+        frame = frame.f_back
+
+    raise ValueError("Cannot infer operation name from caller.")
