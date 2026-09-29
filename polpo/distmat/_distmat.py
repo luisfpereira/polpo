@@ -1,7 +1,7 @@
 import numpy as np
 
 from polpo.dataset import Dataset
-from polpo.numpy.io import load_indexed_array, save_indexed_array
+from polpo.ext.numpy.io import load_indexed_array, save_indexed_array
 from polpo.utils.np import triu_vec_to_sym
 
 from .plot import plot_dist_mat
