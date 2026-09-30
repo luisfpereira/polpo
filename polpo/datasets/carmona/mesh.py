@@ -1,5 +1,5 @@
 import polpo.pipeline.dict as ppdict
-from polpo.neuroi.mesh import MeshDatasetLoader as DerMeshDatasetLoader
+from polpo.neuroimaging.mesh import MeshDatasetLoader as DerMeshDatasetLoader
 from polpo.pipeline import Constant, pipe_to_func
 
 from .defaults import DATA_DIR

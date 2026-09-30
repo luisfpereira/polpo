@@ -1,17 +1,3 @@
-def MeshDatasetLoader(struct_subset=None, derivative="fsl", mesh_reader=False):
-    if derivative.startswith("fsl"):
-        from polpo.fsl.mesh import MeshDatasetLoader as FslMeshDatasetLoader
-
-        return FslMeshDatasetLoader(
-            struct_subset=struct_subset, mesh_reader=mesh_reader
-        )
-
-    elif derivative.startswith("enigma"):
-        from polpo.enigma.mesh import MeshDatasetLoader as EnigmaMeshDatasetLoader
-
-        return EnigmaMeshDatasetLoader(
-            struct_subset=struct_subset, mesh_reader=mesh_reader
-        )
-
-    else:
-        raise ValueError(f"Unknown derivative: {derivative}")
+from ._dispatch import read_geometry, select_mesh_paths  # noqa: F401
+from .enigma import mesh as _enigma_mesh  # noqa: F401
+from .fsl import mesh as _fsl_mesh  # noqa: F401

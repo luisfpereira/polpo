@@ -1,5 +1,5 @@
 import polpo.pipeline.dict as ppdict
-from polpo.neuroi.mri import SubcorticalSegmentationFinder
+from polpo.neuroimaging.mri import SubcorticalSegmentationFinder
 from polpo.pipeline import Constant, pipe_to_func
 from polpo.pipeline.mri import MriImageLoader
 

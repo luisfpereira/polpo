@@ -1,4 +1,4 @@
-from polpo.neuroi.naming import _expand_subcortical_structs
+from polpo.neuroimaging.naming import _expand_subcortical_structs
 
 SUBCORTICAL_STRUCTS = {
     # https://fsl.fmrib.ox.ac.uk/fsl/docs/structural/first.html

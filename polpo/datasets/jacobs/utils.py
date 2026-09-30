@@ -42,6 +42,27 @@ def get_subject_ids(
     return ids
 
 
+def validate_subject_subset(subject_subset):
+    """Validate subject identifiers.
+
+    Parameters
+    ----------
+    subject_subset : array-like
+        Subject identifiers to validate.
+
+    Raises
+    ------
+    ValueError
+        If any subject identifier is not available.
+    """
+    invalid = set(subject_subset) - set(MATERNAL_IDS)
+    if invalid:
+        raise ValueError(
+            f"Unknown subject IDs: {sorted(invalid)}. "
+            f"Available IDs: {sorted(MATERNAL_IDS)}."
+        )
+
+
 def _index_session_by_step(index_session_by="id", data_dir=None, subject_subset=None):
     if index_session_by not in ("id", "gest_week", "birth"):
         raise ValueError("Can't handle indexing by ``{index_session_by}``")

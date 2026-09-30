@@ -5,7 +5,7 @@ from polpo.bids import DerFolderSelector
 from polpo.enigma.output import load_output
 from polpo.pipeline import BranchingPipeline
 
-from .defaults import PILOT_PROJECT_FOLDER, PROJECT_FOLDER
+from .defaults import MATERNAL_PROJECT_FOLDER, PILOT_PROJECT_FOLDER
 from .path import _session_sorter, _split_subject_subset
 from .utils import _index_session_by_step
 
@@ -62,7 +62,7 @@ def OutputLoader(
 
     if len(subject_subset_):
         pipe = (
-            (lambda folder: Path(folder).expanduser() / PROJECT_FOLDER)
+            (lambda folder: Path(folder).expanduser() / MATERNAL_PROJECT_FOLDER)
             + DerFolderSelector(derivative)
             + (lambda path: path / "data" / f"subjects_file_{output}.csv")
             + (

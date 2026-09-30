@@ -1,4 +1,4 @@
-from polpo.neuroi.naming import (  # noqa: F401
+from polpo.neuroimaging.naming import (  # noqa: F401
     get_all_subcortical_structs,
     get_subcortical_struct_long_name,
 )

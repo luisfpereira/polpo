@@ -1,4 +1,4 @@
-from polpo.neuroi.mri import LabelSelector as BaseLabelSelector
+from polpo.neuroimaging.mri import LabelSelector as BaseLabelSelector
 
 from .naming import NAME_TO_ASHS_ID
 

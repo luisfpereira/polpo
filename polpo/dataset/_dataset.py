@@ -21,20 +21,40 @@ class DatasetMapping(Mapping):
     def __repr__(self):
         return f"{type(self).__name__}({self.data!r})"
 
-
-class Dataset(DatasetMapping):
-    def __init__(self, data):
-        self.data = data
-
     def _new(self, data):
         return type(self)(data)
-
-    def as_dict(self):
-        return self.data
 
     def keys_list(self):
         return list(self.data.keys())
 
+    def as_dict(self):
+        return self.data
+
+    def merge(self, other):
+        return type(self).merge_many([self, other])
+
+    def sort_keys(self, key=None, reverse=False):
+        """Sort dataset items by key."""
+        sort_key = lambda item: item[0] if key is None else key(item[0])
+        data = dict(sorted(self.data.items(), key=sort_key, reverse=reverse))
+
+        return type(self)(data)
+
+    @classmethod
+    def merge_many(cls, datasets):
+        data = {}
+
+        for dataset in datasets:
+            overlap = data.keys() & dataset.keys()
+            if overlap:
+                raise ValueError(f"Duplicate keys: {overlap}")
+
+            data.update(dataset.items())
+
+        return cls(data)
+
+
+class Dataset(DatasetMapping):
     def values_list(self):
         return list(self.data.values())
 
@@ -135,9 +155,6 @@ class Dataset(DatasetMapping):
         Dataset
             Dataset containing the sampled entries.
         """
-        if n_samples < 1:
-            raise ValueError("n_samples must be positive.")
-
         if n_samples > len(self):
             raise ValueError(
                 f"Cannot sample {n_samples} entries from a dataset "
@@ -181,19 +198,6 @@ class Dataset(DatasetMapping):
         )
 
     @classmethod
-    def merge(cls, datasets):
-        data = {}
-
-        for dataset in datasets:
-            overlap = data.keys() & dataset.keys()
-            if overlap:
-                raise ValueError(f"Duplicate keys: {overlap}")
-
-            data.update(dataset.items())
-
-        return cls(data)
-
-    @classmethod
     def zip_many(cls, datasets, func):
         if not datasets:
             return cls({})
@@ -205,29 +209,22 @@ class Dataset(DatasetMapping):
 
         return cls({key: func([dataset[key] for dataset in datasets]) for key in keys})
 
+    @classmethod
+    def from_keys(cls, keys, func):
+        """Create a dataset by evaluating a function at each key."""
+        return cls({key: func(key) for key in keys})
+
 
 class NestedDataset(DatasetMapping):
-    def __init__(self, data):
-        self.data = data
-
-    def _new(self, data):
-        return type(self)(data)
-
-    def keys_list(self):
-        return list(self.data.keys())
-
-    def inner_keys(self):
+    def nested_keys(self):
         return {outer_key: list(inner) for outer_key, inner in self.items()}
 
-    def nested_keys(self):
+    def key_pairs(self):
         return [
             (outer_key, inner_key)
             for outer_key, inner in self.items()
             for inner_key in inner
         ]
-
-    def as_dict(self):
-        return self.data
 
     def flatten(self):
         data = unnest_dict(self.data, sep=None)
@@ -446,12 +443,6 @@ class NestedDataset(DatasetMapping):
 
         return Dataset({group: type(self)(data) for group, data in groups.items()})
 
-    @classmethod
-    def zip_many(cls, datasets, func):
-        return Dataset.zip_many(
-            [dataset.flatten() for dataset in datasets], func
-        ).nest()
-
     def to_dataframe(
         dataset,
         outer_col="subject",
@@ -485,5 +476,37 @@ class NestedDataset(DatasetMapping):
             {
                 outer_value: dict(zip(group[inner_col], group[value_col]))
                 for outer_value, group in data.groupby(outer_col, sort=False)
+            }
+        )
+
+    def sort_inner_keys(self, key=None, reverse=False):
+        return type(self)(
+            {
+                outer_key: dict(
+                    sorted(
+                        inner_data.items(),
+                        key=lambda item: key(item[0]) if key is not None else item[0],
+                        reverse=reverse,
+                    )
+                )
+                for outer_key, inner_data in self.items()
+            }
+        )
+
+    @classmethod
+    def zip_many(cls, datasets, func):
+        return Dataset.zip_many(
+            [dataset.flatten() for dataset in datasets], func
+        ).nest()
+
+    @classmethod
+    def from_keys(cls, nested_keys, func):
+        """Create a nested dataset by evaluating a function at each key."""
+        return cls(
+            {
+                outer_key: {
+                    inner_key: func(outer_key, inner_key) for inner_key in inner_keys
+                }
+                for outer_key, inner_keys in nested_keys.items()
             }
         )

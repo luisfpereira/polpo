@@ -8,6 +8,6 @@ else:
     DATA_DIR = Path("~/data/maternal").expanduser()
 
 
-PROJECT_FOLDER = "maternal_brain_project"
-PILOT_PROJECT_FOLDER = f"{PROJECT_FOLDER}_pilot"
+MATERNAL_PROJECT_FOLDER = "maternal_brain_project"
+PILOT_PROJECT_FOLDER = f"{MATERNAL_PROJECT_FOLDER}_pilot"
 PILOT_DATA_DIR = DATA_DIR / PILOT_PROJECT_FOLDER

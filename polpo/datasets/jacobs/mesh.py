@@ -1,34 +1,26 @@
-import polpo.pipeline.dict as ppdict
-from polpo.neuroi.mesh import MeshDatasetLoader as DerMeshDatasetLoader
-from polpo.pipeline import Constant, pipe_to_func
+from polpo.neuroimaging.dataset import group_by_structure
+from polpo.neuroimaging.mesh import read_geometry, select_mesh_paths
+from polpo.surface_mesh.core import Surface
 
 from .defaults import DATA_DIR
-from .path import FoldersSelector
-from .utils import _index_session_by_step
+from .path import select_folders
 
 
-def MeshDatasetLoader(
+def load_dataset(
     derivative,
     data_dir=None,
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
-    mesh_reader=False,
-    index_session_by="id",
+    as_surface=None,
 ):
-    """Create pipeline to load derivative meshes.
-
-    The pipeline takes no input. It selects subject-session folders from
-    ``data_dir`` and returns a nested dictionary:
-
-    ``output[subject_id][session_id][struct_id] -> filename_or_mesh``
+    """Load derivative meshes grouped by structure.
 
     Parameters
     ----------
     derivative : str
-        Name of the derivative folder (e.g. ``"fsl_first"``,
-        ``"fastsurfer-long"``).
-    data_dir : str
+        Prefix identifying the derivative directory.
+    data_dir : str or pathlib.Path
         Dataset root directory.
     subject_subset : array-like
         Subject identifiers to select. If ``None``, all subjects are used.
@@ -36,44 +28,37 @@ def MeshDatasetLoader(
         Session identifiers to select. If ``None``, all sessions are used.
     struct_subset : array-like
         Structure identifiers to select. If ``None``, all structures are used.
-    mesh_reader : callable or bool
-        Mesh reader applied to each selected mesh filename. If ``False``,
-        filenames are returned instead of loaded meshes.
-    index_session_by : {"id", "gest_week", "birth"}
-        Strategy used to index sessions in the output.
-
-        - ``"id"``: keep the original session identifiers.
-        - ``"gest_week"``: replace session identifiers with gestational
-        weeks.
-        - ``"birth"``: replace session identifiers with gestational weeks
-        relative to birth (birth week corresponds to 0).
+    as_surface : bool
+        Whether to load mesh paths as ``Surface`` objects.
 
     Returns
     -------
-    pipe : Pipeline
-        Pipeline returning a nested dictionary of mesh filenames or loaded
-        meshes indexed by subject, session, and structure identifiers.
+    dataset : Dataset
+        Dataset indexed by structure. Each value is a ``NestedDataset`` indexed
+        by subject and session.
     """
     if data_dir is None:
         data_dir = DATA_DIR
 
-    folders_selector = Constant(data_dir) + FoldersSelector(
+    folders = select_folders(
+        data_dir,
+        derivative,
         subject_subset=subject_subset,
         session_subset=session_subset,
-        derivative=derivative,
     )
 
-    mesh_finder = DerMeshDatasetLoader(
-        struct_subset, derivative, mesh_reader=mesh_reader
-    )
+    def _select_mesh_paths(path):
+        paths = select_mesh_paths(
+            path, struct_subset=struct_subset, derivative=derivative
+        )
 
-    pipe = (
-        folders_selector
-        + ppdict.NestedDictMap(mesh_finder)
-        + _index_session_by_step(index_session_by, data_dir, subject_subset)
-    )
+        if as_surface:
+            return paths.map_values(
+                lambda path: Surface(*read_geometry(path, derivative=derivative))
+            )
 
-    return pipe
+        return paths
 
+    dataset = folders.map_values(_select_mesh_paths)
 
-load_meshes = pipe_to_func(MeshDatasetLoader)
+    return group_by_structure(dataset)

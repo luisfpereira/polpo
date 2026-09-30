@@ -1,5 +1,5 @@
-from polpo.neuroi.validation import validate_struct as _validate_struct
-from polpo.neuroi.validation import validate_structs as _validate_structs
+from polpo.neuroimaging.validation import validate_struct as _validate_struct
+from polpo.neuroimaging.validation import validate_structs as _validate_structs
 
 from .naming import get_all_subcortical_structs
 

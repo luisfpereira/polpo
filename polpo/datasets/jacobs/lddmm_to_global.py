@@ -4,7 +4,7 @@ import polpo.pipeline.dict as ppdict
 from polpo.dataset import Dataset, NestedDataset, NestedKeyMap
 from polpo.jacobs.mesh import MeshDatasetLoader
 from polpo.jacobs.tabular import get_key_to_week
-from polpo.neuroi.naming import (
+from polpo.neuroimaging.naming import (
     get_all_subcortical_structs,
     get_subcortical_struct_long_name,
 )

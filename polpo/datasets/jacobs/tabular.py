@@ -7,7 +7,7 @@ import polpo.pipeline.pd as ppd
 import polpo.utils as putils
 from polpo.pipeline import BranchingPipeline, Constant, pipe_to_func
 
-from .defaults import DATA_DIR, PILOT_PROJECT_FOLDER, PROJECT_FOLDER
+from .defaults import DATA_DIR, MATERNAL_PROJECT_FOLDER, PILOT_PROJECT_FOLDER
 from .pilot.tabular import SessionDataLoader as PilotSessionDataLoader
 
 
@@ -38,7 +38,7 @@ def _SessionDataLoader(
         Pipeline to load maternal csv data without the pilot.
     """
     if data_dir is None:
-        data_dir = DATA_DIR / PROJECT_FOLDER / "rawdata"
+        data_dir = DATA_DIR / MATERNAL_PROJECT_FOLDER / "rawdata"
 
     filename = "SessionData.csv"
     loader = Constant(Path(data_dir).expanduser() / filename)
@@ -111,7 +111,7 @@ def SessionDataLoader(
         subject_subset.remove("01")
 
     pipe = _SessionDataLoader(
-        data_dir=data_dir / PROJECT_FOLDER / "rawdata",
+        data_dir=data_dir / MATERNAL_PROJECT_FOLDER / "rawdata",
         subject_subset=subject_subset,
         index_by_session=index_by_session and len(subject_subset) == 1,
     )
@@ -192,7 +192,8 @@ def get_birth_week(
         birth_week["01"] = 40.0
 
     df = _SessionDataLoader(
-        data_dir=data_dir / PROJECT_FOLDER / "rawdata", subject_subset=subject_subset
+        data_dir=data_dir / MATERNAL_PROJECT_FOLDER / "rawdata",
+        subject_subset=subject_subset,
     )()
 
     df_ = df.loc[df["sessionID"] == "post1"].copy()

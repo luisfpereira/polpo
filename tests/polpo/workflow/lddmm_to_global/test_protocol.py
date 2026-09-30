@@ -6,10 +6,14 @@ from polpo.dataset import NestedDataset
 from polpo.surface_mesh.core import Surface
 from polpo.surface_mesh.generation.blob import create_blob
 from polpo.workflow.lddmm_to_global import (
-    LddmmToGlobal,
     LddmmToGlobalMultiOutput,
     LddmmToGlobalOutput,
 )
+
+try:
+    from polpo.workflow.lddmm_to_global import LddmmToGlobal
+except ImportError:
+    pass
 
 
 @pytest.fixture(scope="session")
@@ -73,6 +77,8 @@ def test_output_view(lddmm_output):
     view.global_atlas_flows
 
 
+@pytest.mark.slow
+@pytest.mark.deformetrica
 @pytest.mark.smoke
 def test_multi_output_view(lddmm_output):
     lddmm_multi_output = LddmmToGlobalMultiOutput([lddmm_output, lddmm_output])

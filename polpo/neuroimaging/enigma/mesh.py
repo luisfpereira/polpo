@@ -2,57 +2,61 @@ from importlib.resources import files
 from pathlib import Path
 
 import numpy as np
-import pyvista as pv
 
-import polpo.pipeline.dict as ppdict
-import polpo.utils as putils
-from polpo.ext.pyvista.conversion import PvFromData
-from polpo.freesurfer.mesh import FreeSurferReader
-from polpo.pipeline import Map
-from polpo.pipeline.path import (
-    FileFinder,
-    PathShortener,
-)
-from polpo.pipeline.str import (
-    DigitFinder,
-    EndsWithAny,
-    StartsWith,
-)
+from polpo.dataset import Dataset
+from polpo.neuroimaging._dispatch import read_geometry, select_mesh_paths
+from polpo.neuroimaging.freesurfer.mesh import read_geometry as _read_geometry
+from polpo.surface_mesh.core import Surface
 
 from .naming import (
-    aseg_id_to_name,
     get_all_subcortical_structs,
     name_to_aseg_id,
 )
 from .validation import validate_structs
 
-
-def MeshReader():
-    return FreeSurferReader() + PvFromData()
+read_geometry.register("enigma")(_read_geometry)
 
 
-def MeshDatasetLoader(struct_subset=None, mesh_reader=False):
-    # TODO: rename to MeshDatasetLoader
-    # pipeline takes dirname
-    if mesh_reader is None:
-        mesh_reader = MeshReader()
-    elif mesh_reader is False:
-        mesh_reader = None
+@select_mesh_paths.register("enigma")
+def select_mesh_paths(path, struct_subset=None):
+    """Select ENIGMA-SHAPE mesh paths by anatomical structure.
 
+    Parameters
+    ----------
+    path : pathlib.Path
+        Directory containing ENIGMA-SHAPE outputs.
+    struct_subset : array-like
+        Structure identifiers to select. If ``None``, all subcortical
+        structures are used.
+
+    Returns
+    -------
+    mesh_paths : Dataset
+        Mesh paths indexed by structure identifier.
+
+    Raises
+    ------
+    ValueError
+        If a structure identifier is invalid or if exactly one mesh cannot
+        be found for a requested structure.
+    """
     if struct_subset is None:
         struct_subset = get_all_subcortical_structs()
 
     validate_structs(struct_subset)
 
-    enigma_indices = [f"_{name_to_aseg_id(struct)}" for struct in struct_subset]
-    rules = [StartsWith("resliced_mesh"), EndsWithAny(enigma_indices)]
-    path_to_struct_id = PathShortener() + DigitFinder(index=-1) + aseg_id_to_name
+    paths = {}
 
-    return FileFinder(rules=rules, as_list=True) + ppdict.HashWithIncoming(
-        key_step=Map(path_to_struct_id),
-        step=Map(mesh_reader),
-        key_sorter=putils.custom_order(struct_subset),
-    )
+    for struct in struct_subset:
+        aseg_id = name_to_aseg_id(struct)
+        mesh_path = path / f"resliced_mesh_{aseg_id}"
+
+        if not mesh_path.is_file():
+            raise ValueError(f"Expected mesh for {struct!r} at {mesh_path!s}.")
+
+        paths[struct] = mesh_path
+
+    return Dataset(paths)
 
 
 def read_ccbbm(filename, index_base=1):
@@ -105,13 +109,32 @@ def read_ccbbm(filename, index_base=1):
     return vertices, faces
 
 
-def load_template(name, as_polydata=True):
-    filename = files("polpo.enigma") / "resources" / f"atlas_{name_to_aseg_id(name)}.m"
+def load_template(name, as_surface=True):
+    """Load an ENIGMA atlas template.
+
+    Parameters
+    ----------
+    name : str
+        Anatomical structure identifier.
+    as_surface : bool
+        Whether to return the template as a ``Surface``.
+
+    Returns
+    -------
+    template : Surface or tuple
+        Template surface. If ``as_surface`` is ``False``, returns
+        ``(vertices, faces)`` instead.
+    """
+    filename = (
+        files("polpo.neuroimaging.enigma")
+        / "resources"
+        / f"atlas_{name_to_aseg_id(name)}.m"
+    )
 
     vertices, faces = read_ccbbm(filename)
 
-    if as_polydata:
-        return pv.PolyData.from_regular_faces(points=vertices, faces=faces)
+    if as_surface:
+        return Surface(vertices, faces)
 
     return vertices, faces
 
@@ -196,7 +219,20 @@ _TEMPLATE_N_VERTICES = {
 }
 
 
-def get_template_n_vertices(struct):
+def get_template_vertex_count(struct):
+    """Return the number of vertices in an ENIGMA atlas template.
+
+    Parameters
+    ----------
+    struct : str
+        Anatomical structure identifier. Hemisphere prefixes such as
+        ``"L_"`` and ``"R_"`` are ignored.
+
+    Returns
+    -------
+    n_vertices : int
+        Number of vertices in the template.
+    """
     if "_" in struct:
         struct = struct.split("_")[1]
 

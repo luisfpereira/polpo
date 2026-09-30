@@ -1,5 +1,8 @@
-from polpo.freesurfer.naming import aseg_id_to_name, name_to_aseg_id  # noqa: F401
-from polpo.neuroi.naming import _expand_subcortical_structs
+from polpo.neuroimaging.freesurfer.naming import (  # noqa: F401
+    aseg_id_to_name,
+    name_to_aseg_id,
+)
+from polpo.neuroimaging.naming import _expand_subcortical_structs
 
 SUBCORTICAL_STRUCTS = {
     # https://fsl.fmrib.ox.ac.uk/fsl/docs/structural/first.html

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import polpo.pipeline.pd as ppd
-from polpo.jacobs.defaults import PILOT_DATA_DIR
+from polpo.datasets.jacobs.defaults import PILOT_DATA_DIR
 from polpo.pipeline import Constant, pipe_to_func
 
 
