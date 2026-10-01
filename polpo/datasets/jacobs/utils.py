@@ -57,6 +57,22 @@ def get_subject_ids(
     return ids
 
 
+def is_pregnancy_subject(subject):
+    """Check whether a subject belongs to the pregnancy cohort.
+
+    Parameters
+    ----------
+    subject : str
+        Subject identifier.
+
+    Returns
+    -------
+    is_pregnancy : bool
+        Whether the subject belongs to the pregnancy cohort.
+    """
+    return subject == "01" or subject.startswith("1")
+
+
 def validate_subject_subset(subject_subset):
     """Validate subject identifiers.
 
