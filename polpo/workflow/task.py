@@ -1,5 +1,6 @@
 import logging
 import platform
+import traceback
 from abc import ABC
 from pathlib import Path
 
@@ -162,6 +163,7 @@ class TaskRunner(ABC):
             "error": {
                 "type": type(error).__name__,
                 "message": str(error),
+                "traceback": traceback.format_exc(),
             },
         }
 
