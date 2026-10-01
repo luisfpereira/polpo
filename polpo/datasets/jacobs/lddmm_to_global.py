@@ -31,7 +31,7 @@ def _select_atlas_inputs(dataset, session_to_week):
         Observations to use for atlas estimation.
     """
     last_session = {
-        subject: sessions[-1] for subject, sessions in dataset.inner_keys().items()
+        subject: sessions[-1] for subject, sessions in dataset.nested_keys().items()
     }
 
     def use_for_atlas(subject, session):
@@ -130,8 +130,8 @@ def prepare_inputs(
     known_correspondences = True if derivative == "enigma" else False
     return (
         dataset_.map_keys(key_codec.map),
-        key_codec.map_keys(atlas_inputs.inner_keys()),
-        key_codec.map_keys(atlas_only_inputs.inner_keys()),
+        key_codec.map_keys(atlas_inputs.nested_keys()),
+        key_codec.map_keys(atlas_only_inputs.nested_keys()),
         known_correspondences,
         metadata,
     )
