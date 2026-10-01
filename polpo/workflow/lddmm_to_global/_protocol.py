@@ -4,10 +4,12 @@ import numpy as np
 
 from polpo.dataset import Dataset, NestedDataset
 from polpo.io.json import dump_json
-from polpo.surface_mesh.deformetrica import FrechetMean, LddmmMetric, Point
+from polpo.surface_mesh.deformetrica import FrechetMean, Point
 from polpo.surface_mesh.registration import SurfaceRigidRegistration
 from polpo.surface_mesh.varifold.tuning import SigmaFromScale
 from polpo.time import Timer, utc_now
+
+from ._metric import instantiate_lddmm_metric
 
 
 class LddmmToGlobal:
@@ -37,7 +39,7 @@ class LddmmToGlobal:
         Metadata persisted with the protocol results.
     """
 
-    PROTOCOL_VERSION = "0.3.0"
+    PROTOCOL_VERSION = "0.4.0"
 
     def __init__(
         self,
@@ -99,22 +101,25 @@ class LddmmToGlobal:
             "random_state": int(seed_sequence.entropy),
         }
 
-    def preprocess_meshes(self, data):
+    def preprocess_meshes(self, data, target_data=None):
         """Rigidly align meshes to a randomly selected target.
 
         Parameters
         ----------
         data : Dataset
             Surface meshes to align.
+        target_data : Dataset or None
+            Surface meshes from which to select the alignment target.
 
         Returns
         -------
         aligned : Dataset
             Rigidly aligned surface meshes.
         """
-        # rigidly aligns all the meshes against a randomly chosen target
+        target_data = target_data or data
+
         with self.timer("prep"):
-            target_mesh = data.sample(random_state=self.rng_)
+            target_mesh = target_data.sample(random_state=self.rng_)
 
             registration = SurfaceRigidRegistration(
                 known_correspondences=self.known_correspondences
@@ -128,19 +133,19 @@ class LddmmToGlobal:
 
         return data_
 
-    def tune_kernel(self, nested_meshes):
-        """Estimate kernel widths using one randomly selected mesh per subject.
+    def tune_kernel(self, meshes):
+        """Estimate kernel widths using atlas meshes.
 
         Parameters
         ----------
-        nested_meshes : NestedDataset
-            Nested dataset of aligned surface meshes.
+        meshes : Dataset
+            Dataset of aligned surface meshes.
 
         Returns
         -------
-        sigma_vel : float
+        kernel_width : float
             Width of the deformation kernel.
-        sigma_var : float
+        attachment_kernel_width : float
             Width of the varifold attachment kernel.
         """
         with self.timer("tuning"):
@@ -149,27 +154,25 @@ class LddmmToGlobal:
                 object_ratio=self.object_ratio,
             )
 
-            selected_meshes = nested_meshes.sample_inner(random_state=self.rng_)
-            sigma_var = sigma_search(selected_meshes.flatten().values_list())
+            attachment_kernel_width = sigma_search(meshes.values_list())
 
-        sigma_vel = self.ratio_kernel * sigma_var
+        kernel_width = self.ratio_kernel * attachment_kernel_width
 
         self.results_["kernel_tuning"] = {
-            "sigma_vel": sigma_vel,
-            "sigma_var": sigma_var,
-            "meshes": selected_meshes.flatten().keys_list(),
+            "kernel_width": kernel_width,
+            "attachment_kernel_width": attachment_kernel_width,
         }
 
-        return sigma_vel, sigma_var
+        return kernel_width, attachment_kernel_width
 
-    def instantiate_metric(self, sigma_vel, sigma_var):
+    def instantiate_metric(self, kernel_width, attachment_kernel_width):
         """Instantiate the LDDMM metric used by the protocol.
 
         Parameters
         ----------
-        sigma_vel : float
+        kernel_width : float
             Width of the deformation kernel.
-        sigma_var : float
+        attachment_kernel_width : float
             Width of the varifold attachment kernel.
 
         Returns
@@ -177,11 +180,13 @@ class LddmmToGlobal:
         metric : LddmmMetric
             Configured LDDMM metric.
         """
-        metric = LddmmMetric(
+        metric = instantiate_lddmm_metric(
             self.results_dir,
-            kernel_width=sigma_vel,
-            attachment_metric="varifold",
-            attachment_kernel_width=sigma_var,
+            kernel_width=kernel_width,
+            attachment_kernel_width=attachment_kernel_width,
+            regularization=self.regularization,
+            max_iter=self.max_iter,
+            tol=self.tol,
         )
 
         metric.config.set_attachment(
@@ -219,7 +224,7 @@ class LddmmToGlobal:
             )
         )
 
-    def build_local_atlases(self, nested_points, metric, atlas_keys):
+    def build_local_atlases(self, nested_points, metric):
         """Estimate one local atlas per outer dataset key.
 
         Parameters
@@ -228,8 +233,6 @@ class LddmmToGlobal:
             Nested dataset of LDDMM points.
         metric : LddmmMetric
             Metric used for atlas estimation.
-        atlas_keys : mapping
-            Inner keys used to estimate each local atlas.
 
         Returns
         -------
@@ -241,11 +244,8 @@ class LddmmToGlobal:
         with self.timer("local_atlases"):
             atlases = {}
             for outer_key, points in nested_points.items():
-                subset = Dataset(points).select(atlas_keys[outer_key]).values_list()
-                estimator.fit(subset, atlas_id=outer_key)
-                atlas = estimator.estimate_
-
-                atlases[outer_key] = atlas
+                estimator.fit(Dataset(points).values_list(), atlas_id=outer_key)
+                atlases[outer_key] = estimator.estimate_
 
         return Dataset(atlases)
 
@@ -335,7 +335,19 @@ class LddmmToGlobal:
             }
         )
 
-    def run(self, nested_meshes, atlas_keys):
+    def _validate_keys(self, nested_meshes, atlas_keys, atlas_only_keys):
+        nested_keys = nested_meshes.nested_keys()
+
+        missing_outer = set(nested_keys) - set(atlas_keys)
+        if missing_outer:
+            raise ValueError(
+                f"Missing atlas keys for outer keys: {sorted(missing_outer)}."
+            )
+
+        _validate_nested_keys(atlas_keys, nested_keys, "atlas_keys")
+        _validate_nested_keys(atlas_only_keys, atlas_keys, "atlas_only_keys")
+
+    def run(self, nested_meshes, atlas_keys, atlas_only_keys=None):
         """Run the LDDMM-to-global shape representation protocol.
 
         Parameters
@@ -344,6 +356,9 @@ class LddmmToGlobal:
             Nested dataset of input surface meshes.
         atlas_keys : mapping
             Inner keys used to estimate each local atlas.
+        atlas_only_keys: mapping
+            Inner keys used for atlas estimation but excluded from global
+            representations.
 
         Returns
         -------
@@ -353,9 +368,14 @@ class LddmmToGlobal:
         if isinstance(nested_meshes, dict):
             nested_meshes = NestedDataset(nested_meshes)
 
+        atlas_only_keys = atlas_only_keys or {}
+
         self._reset()
+        self._validate_keys(nested_meshes, atlas_keys, atlas_only_keys)
 
         self.params_["keys"] = nested_meshes.nested_keys()
+        self.params_["atlas_keys"] = atlas_keys
+        self.params_["atlas_only_keys"] = atlas_only_keys
 
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.results_["status"] = "running"
@@ -363,25 +383,32 @@ class LddmmToGlobal:
         try:
             with self.timer():
                 self.current_stage_ = "preprocessing"
-                nested_meshes_ = self.preprocess_meshes(nested_meshes.flatten()).nest()
+                nested_meshes_ = self.preprocess_meshes(
+                    nested_meshes.flatten(),
+                    nested_meshes.drop_inner(atlas_only_keys).flatten(),
+                ).nest()
 
                 self.current_stage_ = "metric_instantiation"
-                sigma_vel, sigma_var = self.tune_kernel(nested_meshes_)
-                metric = self.instantiate_metric(sigma_vel, sigma_var)
+                atlas_meshes = nested_meshes_.select_inner(atlas_keys)
+                kernel_width, attachment_kernel_width = self.tune_kernel(
+                    atlas_meshes.flatten()
+                )
+                metric = self.instantiate_metric(kernel_width, attachment_kernel_width)
 
                 nested_points = self.meshes_as_points(nested_meshes_, metric)
+                atlas_points = nested_points.select_inner(atlas_keys)
 
                 self.current_stage_ = "local_atlases"
-                local_atlases = self.build_local_atlases(
-                    nested_points, metric, atlas_keys
-                )
+                local_atlases = self.build_local_atlases(atlas_points, metric)
 
                 self.current_stage_ = "global_atlas"
                 atlas = self.build_global_atlas(local_atlases, metric)
 
+                nested_points_ = nested_points.drop_inner(atlas_only_keys)
+
                 self.current_stage_ = "registration_and_transport"
                 global_reprs = self.register_and_transport(
-                    nested_points,
+                    nested_points_,
                     metric,
                     atlas,
                     local_atlases,
@@ -404,3 +431,45 @@ class LddmmToGlobal:
         self.global_reprs_ = global_reprs
 
         return self
+
+
+def _validate_nested_keys(keys, reference, name):
+    """Validate nested keys against a reference mapping.
+
+    Parameters
+    ----------
+    keys : mapping
+        Mapping from outer keys to collections of inner keys to validate.
+    reference : mapping
+        Mapping from outer keys to the allowed inner keys for each outer key.
+    name : str
+        Name used to identify `keys` in validation errors.
+
+    Raises
+    ------
+    ValueError
+        If `keys` contains an outer key not present in `reference`, or if any
+        inner key is not contained in `reference` for the corresponding outer
+        key.
+
+    Notes
+    -----
+    The validation enforces
+
+        keys[outer_key] <= reference[outer_key]
+
+    for every outer key in `keys`, and requires
+
+        set(keys) <= set(reference).
+    """
+    unknown_outer = set(keys) - set(reference)
+    if unknown_outer:
+        raise ValueError(f"Unknown outer keys in {name}: {sorted(unknown_outer)}.")
+
+    for outer_key, inner_keys in keys.items():
+        unknown_inner = set(inner_keys) - set(reference[outer_key])
+        if unknown_inner:
+            raise ValueError(
+                f"Unknown inner keys in {name}[{outer_key!r}]: "
+                f"{sorted(unknown_inner)}."
+            )

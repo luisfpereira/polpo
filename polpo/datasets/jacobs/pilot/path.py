@@ -37,8 +37,6 @@ def select_folders(
 
     if remove_repeated:
         # same session metadata as 2
-        folders = folders.filter_keys(
-            lambda _, session_id: session_id != "27",
-        )
+        folders = folders.drop_inner({"01": ["27"]})
 
     return folders

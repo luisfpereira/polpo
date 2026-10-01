@@ -40,12 +40,13 @@ def lddmm_output(tmp_path_factory):
         "E": [2],
         "F": [2, 3],
     }
+    atlas_only_keys = {"D": [3]}
 
     protocol = LddmmToGlobal(
         known_correspondences=True,
         results_dir=tmp_path,
     )
-    protocol.run(dataset, atlas_keys=atlas_keys)
+    protocol.run(dataset, atlas_keys=atlas_keys, atlas_only_keys=atlas_only_keys)
 
     return LddmmToGlobalOutput(tmp_path)
 

@@ -57,8 +57,4 @@ def select_folders(
         "1011B": {"pre1", "pre2"},
     }
 
-    return folders.filter_keys(
-        lambda subject_id, session_id: (
-            session_id not in excluded_sessions.get(subject_id, set())
-        )
-    )
+    return folders.drop_inner(excluded_sessions)

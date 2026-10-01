@@ -192,6 +192,22 @@ class Dataset(DatasetMapping):
 
         return self._new({key: self[key] for key in keys})
 
+    def drop(self, keys):
+        """Drop entries by key.
+
+        Parameters
+        ----------
+        keys : collection
+            Keys to drop.
+
+        Returns
+        -------
+        dataset : Dataset
+            Dataset without the specified entries.
+        """
+        keys = set(keys)
+        return self.select([key for key in self.keys() if key not in keys])
+
     def filter_values(self, predicate):
         return self._new(
             dict((key, value) for key, value in self.items() if predicate(value))
@@ -443,6 +459,38 @@ class NestedDataset(DatasetMapping):
 
         return Dataset({group: type(self)(data) for group, data in groups.items()})
 
+    def select_inner(self, keys):
+        """Select inner entries for each outer key."""
+        return NestedDataset(
+            {
+                outer_key: Dataset(values).select(keys[outer_key]).data
+                for outer_key, values in self.items()
+            }
+        )
+
+    def drop_inner(self, keys):
+        """Drop inner entries for each outer key."""
+        return NestedDataset(
+            {
+                outer_key: Dataset(values).drop(keys.get(outer_key, [])).data
+                for outer_key, values in self.items()
+            }
+        )
+
+    def sort_inner_keys(self, key=None, reverse=False):
+        return type(self)(
+            {
+                outer_key: dict(
+                    sorted(
+                        inner_data.items(),
+                        key=lambda item: key(item[0]) if key is not None else item[0],
+                        reverse=reverse,
+                    )
+                )
+                for outer_key, inner_data in self.items()
+            }
+        )
+
     def to_dataframe(
         dataset,
         outer_col="subject",
@@ -476,20 +524,6 @@ class NestedDataset(DatasetMapping):
             {
                 outer_value: dict(zip(group[inner_col], group[value_col]))
                 for outer_value, group in data.groupby(outer_col, sort=False)
-            }
-        )
-
-    def sort_inner_keys(self, key=None, reverse=False):
-        return type(self)(
-            {
-                outer_key: dict(
-                    sorted(
-                        inner_data.items(),
-                        key=lambda item: key(item[0]) if key is not None else item[0],
-                        reverse=reverse,
-                    )
-                )
-                for outer_key, inner_data in self.items()
             }
         )
 
