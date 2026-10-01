@@ -1,33 +1,44 @@
-from pathlib import Path
+import pandas as pd
 
-import polpo.pipeline.pd as ppd
 from polpo.datasets.jacobs.defaults import PILOT_DATA_DIR
-from polpo.pipeline import Constant, pipe_to_func
 
 
-def SessionDataLoader(
+def load_session_data(
     data_dir=None,
     index_by_session=True,
     remove_repeated=True,
 ):
+    """Load pilot session metadata.
+
+    Parameters
+    ----------
+    data_dir : path-like
+        Directory containing ``SessionData.csv``.
+    index_by_session : bool
+        Whether to index rows by session identifier.
+    remove_repeated : bool
+        Whether to remove the repeated session ``27``.
+
+    Returns
+    -------
+    data : pandas.DataFrame
+        Session metadata.
+    """
     if data_dir is None:
         data_dir = PILOT_DATA_DIR / "rawdata"
 
-    filename = "SessionData.csv"
-    loader = Constant(Path(data_dir).expanduser() / filename)
+    path = data_dir / "SessionData.csv"
+    data = pd.read_csv(path)
+    data.drop(columns="trimester", inplace=True)
 
-    prep_pipe = ppd.UpdateColumnValues(
-        column_name="sessionID", func=lambda entry: entry.split("-")[1]
-    )
+    data["sessionID"] = data["sessionID"].str.removeprefix("ses-")
+
     if remove_repeated:
-        prep_pipe += ppd.DfFilter(lambda df: df["sessionID"] == "27", negate=True)
+        data = data[data["sessionID"] != "27"]
+
+    data.insert(0, "subject", "01")
 
     if index_by_session:
-        prep_pipe += ppd.IndexSetter("sessionID", drop=True)
+        data = data.set_index("sessionID")
 
-    prep_pipe += ppd.DfInsert(column="subject", value="01")
-
-    return loader + ppd.CsvReader() + prep_pipe
-
-
-get_session_data = pipe_to_func(SessionDataLoader)
+    return data
