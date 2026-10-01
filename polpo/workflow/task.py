@@ -168,39 +168,11 @@ class TaskRunner(ABC):
         }
 
     def _resolve_tasks(self, tasks, exclude_tasks):
-        """Resolve and validate the tasks selected for execution.
-
-        Parameters
-        ----------
-        tasks : sequence of str or None
-            Names of tasks to run. If None, all available tasks are selected.
-        exclude_tasks : sequence of str or None
-            Names of tasks to exclude from execution.
-
-        Returns
-        -------
-        tasks : dict
-            Mapping from selected task names to tasks.
-
-        Raises
-        ------
-        ValueError
-            If a requested or excluded task is not available.
-        """
-        available_tasks = self.tasks()
-
-        if tasks is None:
-            tasks = list(available_tasks)
-
-        exclude_tasks = [] if exclude_tasks is None else exclude_tasks
-
-        unknown = (set(tasks) | set(exclude_tasks)) - set(available_tasks)
-        if unknown:
-            raise ValueError(f"Unknown tasks: {sorted(unknown)}")
-
-        return {
-            task: available_tasks[task] for task in tasks if task not in exclude_tasks
-        }
+        return _resolve_tasks(
+            self.tasks(),
+            tasks=tasks,
+            exclude_tasks=exclude_tasks,
+        )
 
     def _run_tasks(self, tasks, overwrite, continue_on_error):
         """Run resolved tasks and update their execution state.
@@ -333,6 +305,11 @@ class TaskRunner(ABC):
     def manifest(self):
         """Persisted task-runner manifest."""
         return TaskManifest(self.manifest_path)
+
+    def resolve(self, tasks=None, exclude_tasks=None):
+        """Return a runner with its task selection resolved."""
+        tasks = self._resolve_tasks(tasks, exclude_tasks)
+        return ResolvedTaskRunner(self, tasks=tasks)
 
 
 class CompositeTaskRunner(TaskRunner):
@@ -509,6 +486,65 @@ class SingleTaskRunner(TaskRunner):
         return {self.name: self.fn}
 
 
+class ResolvedTaskRunner:
+    """Task runner with a fixed set of resolved tasks.
+
+    Parameters
+    ----------
+    runner : TaskRunner
+        Underlying task runner.
+    tasks : dict
+        Resolved mapping from task names to task callables.
+    """
+
+    def __init__(self, runner, tasks):
+        self._runner = runner
+        self._tasks = tasks
+
+    def tasks(self):
+        """Return the resolved tasks.
+
+        Returns
+        -------
+        tasks : dict
+            Mapping from task names to task callables.
+        """
+        return self._tasks
+
+    def _resolve_tasks(self, tasks=None, exclude_tasks=None):
+        return _resolve_tasks(
+            self.tasks(),
+            tasks=tasks,
+            exclude_tasks=exclude_tasks,
+        )
+
+    def run(
+        self,
+        tasks=None,
+        exclude_tasks=None,
+        overwrite=False,
+        continue_on_error=True,
+    ):
+        """Return the resolved tasks.
+
+        Returns
+        -------
+        tasks : dict
+            Mapping from task names to task callables.
+        """
+        """Run tasks from the resolved task selection."""
+        tasks = self._resolve_tasks(tasks, exclude_tasks)
+
+        return self._runner.run(
+            tasks=tasks,
+            overwrite=overwrite,
+        )
+
+    def __getattr__(self, name):
+        """Delegate attribute access to the underlying runner."""
+        return getattr(self._runner, name)
+
+
 class TaskManifest:
     """Read persisted task-runner state.
 
@@ -566,3 +602,35 @@ class TaskManifest:
             Whether the task is marked as completed.
         """
         return self.task_status(task) == "completed"
+
+
+def _resolve_tasks(available_tasks, tasks=None, exclude_tasks=None):
+    """Resolve and validate the tasks selected for execution.
+
+    Parameters
+    ----------
+    tasks : sequence of str or None
+        Names of tasks to run. If None, all available tasks are selected.
+    exclude_tasks : sequence of str or None
+        Names of tasks to exclude from execution.
+
+    Returns
+    -------
+    tasks : dict
+        Mapping from selected task names to tasks.
+
+    Raises
+    ------
+    ValueError
+        If a requested or excluded task is not available.
+    """
+    if tasks is None:
+        tasks = list(available_tasks)
+
+    exclude_tasks = [] if exclude_tasks is None else exclude_tasks
+
+    unknown = (set(tasks) | set(exclude_tasks)) - set(available_tasks)
+    if unknown:
+        raise ValueError(f"Unknown tasks: {sorted(unknown)}")
+
+    return {task: available_tasks[task] for task in tasks if task not in exclude_tasks}
