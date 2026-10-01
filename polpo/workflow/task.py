@@ -326,6 +326,11 @@ class TaskRunner(ABC):
         with self.timer():
             return self._run_tasks(tasks, overwrite, continue_on_error)
 
+    @property
+    def manifest(self):
+        """Persisted task-runner manifest."""
+        return TaskManifest(self.manifest_path)
+
 
 class CompositeTaskRunner(TaskRunner):
     """Run a collection of task runners as tasks of a parent runner.
@@ -499,3 +504,62 @@ class SingleTaskRunner(TaskRunner):
             Mapping from the task name to the wrapped callable.
         """
         return {self.name: self.fn}
+
+
+class TaskManifest:
+    """Read persisted task-runner state.
+
+    Parameters
+    ----------
+    path : path-like
+        Path to the task-runner manifest.
+    """
+
+    def __init__(self, path):
+        self.path = Path(path)
+
+    @property
+    def data(self):
+        """Load the manifest data."""
+        return load_json(self.path)
+
+    @property
+    def status(self):
+        """Return the runner status.
+
+        Returns
+        -------
+        status : {"running", "completed", "partial", "failed"}
+            Runner status.
+        """
+        return self.data["status"]
+
+    def task_status(self, task):
+        """Return the status of a task.
+
+        Parameters
+        ----------
+        task : str
+            Task name.
+
+        Returns
+        -------
+        status : str or None
+            Persisted task status, or None if the task is absent.
+        """
+        return self.data.get("tasks", {}).get(task, {}).get("status")
+
+    def is_complete(self, task):
+        """Return whether a task is marked as completed.
+
+        Parameters
+        ----------
+        task : str
+            Task name.
+
+        Returns
+        -------
+        is_complete : bool
+            Whether the task is marked as completed.
+        """
+        return self.task_status(task) == "completed"
