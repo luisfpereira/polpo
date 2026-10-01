@@ -57,7 +57,7 @@ class LddmmToGlobalOutputView(_OutputView):
         """Registrations from local atlases to observed shapes."""
         data = collect_local_registrations(
             self._output.dir_config,
-            self._output.keys,
+            self._output.representation_keys,
         )
         return self._transform(data)
 
@@ -80,7 +80,7 @@ class LddmmToGlobalOutputView(_OutputView):
         """Shoot results representing shapes at the global atlas."""
         data = collect_global_shoots(
             self._output.dir_config,
-            self._output.keys,
+            self._output.representation_keys,
         )
         return self._transform(data)
 
@@ -104,7 +104,7 @@ class LddmmToGlobalOutputView(_OutputView):
         """Parallel-transport results from local to global atlases."""
         data = collect_transports(
             self._output.dir_config,
-            self._output.keys,
+            self._output.representation_keys,
         )
         return self._transform(data)
 
@@ -182,10 +182,27 @@ class LddmmToGlobalOutput:
             **{key: self.path / value for key, value in self.params["dirs"].items()},
         )
 
-    @property
+    @cached_property
     def keys(self):
         """Nested keys stored by the protocol."""
         return self.params["keys"]
+
+    @cached_property
+    def atlas_only_keys(self):
+        """Nested keys used only for atlas estimation."""
+        return self.params.get("atlas_only_keys", {})
+
+    @cached_property
+    def representation_keys(self):
+        """Nested keys with global shape representations."""
+        return {
+            outer_key: [
+                key
+                for key in keys
+                if key not in self.atlas_only_keys.get(outer_key, ())
+            ]
+            for outer_key, keys in self.keys.items()
+        }
 
     @cached_property
     def global_atlas(self):
@@ -196,6 +213,39 @@ class LddmmToGlobalOutput:
     def global_atlas_point(self):
         """Template point of the global atlas."""
         return self.global_atlas.template
+
+    def instantiate_varifold_metric(self, engine="auto"):
+        """Instantiate the varifold metric used by the protocol."""
+        from polpo.surface_mesh.varifold.geometry import VarifoldMetric
+
+        return VarifoldMetric(
+            sigma=self.results["kernel_tuning"]["attachment_kernel_width"],
+            engine=engine,
+        )
+
+    def instantiate_euclidean_metric(self):
+        """Instantiate the Euclidean metric on the global-atlas mesh."""
+        from polpo.surface_mesh.euclidean import EuclideanSurfaces
+
+        return EuclideanSurfaces(
+            faces=self.global_atlas_point.as_surface().faces
+        ).metric
+
+    def instantiate_lddmm_metric(self):
+        """Instantiate the LDDMM metric used by the protocol."""
+        from ._metric import instantiate_lddmm_metric
+
+        tuning = self.results["kernel_tuning"]
+        config = self.params["metric"]
+
+        return instantiate_lddmm_metric(
+            self.path,
+            kernel_width=tuning["kernel_width"],
+            attachment_kernel_width=tuning["attachment_kernel_width"],
+            regularization=config["regularization"],
+            max_iter=config["max_iter"],
+            tol=config["tol"],
+        )
 
 
 class MultiPoint:

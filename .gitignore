@@ -10,6 +10,7 @@ docs/**/_generated
 docs/.mustache.js
 Makefile
 *.gif
+tests/.test_data/
 
 # From running examples and notebooks
 checkpoint

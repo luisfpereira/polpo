@@ -367,7 +367,7 @@ class PairwiseDistances(BasePairDistances):
         )
 
     @classmethod
-    def merge(cls, distances):
+    def merge_many(cls, distances):
         """Merge pairwise distance collections.
 
         Parameters

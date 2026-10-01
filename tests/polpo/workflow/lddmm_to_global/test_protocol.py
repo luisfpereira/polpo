@@ -1,54 +1,23 @@
-import string
-
 import pytest
 
-from polpo.dataset import NestedDataset
-from polpo.surface_mesh.core import Surface
-from polpo.surface_mesh.generation.blob import create_blob
 from polpo.workflow.lddmm_to_global import (
     LddmmToGlobalMultiOutput,
-    LddmmToGlobalOutput,
 )
-
-try:
-    from polpo.workflow.lddmm_to_global import LddmmToGlobal
-except ImportError:
-    pass
+from polpo.workflow.lddmm_to_global.distances import (
+    EuclideanDistances,
+    LddmmDistances,
+    MultiDistanceResults,
+    PersistentEvaluator,
+)
 
 
 @pytest.fixture(scope="session")
 def lddmm_output(tmp_path_factory):
+    from tests.generate_lddmm_output import generate_lddmm_output
+
     tmp_path = tmp_path_factory.mktemp("lddmm")
 
-    data = {}
-    for subj_index, (n_meshes, bump_amp, n_bumps) in enumerate(
-        zip((3, 2, 4), (0.2, 0.3, 0.4), (3, 5, 6))
-    ):
-        data[string.ascii_uppercase[subj_index + 3]] = {
-            index + 2: Surface.from_polydata(
-                create_blob(
-                    resolution=10, bump_amp=bump_amp, n_bumps=n_bumps, smoothing_iter=10
-                )
-            )
-            for index in range(n_meshes)
-        }
-
-    dataset = NestedDataset(data)
-
-    atlas_keys = {
-        "D": [2, 3],
-        "E": [2],
-        "F": [2, 3],
-    }
-    atlas_only_keys = {"D": [3]}
-
-    protocol = LddmmToGlobal(
-        known_correspondences=True,
-        results_dir=tmp_path,
-    )
-    protocol.run(dataset, atlas_keys=atlas_keys, atlas_only_keys=atlas_only_keys)
-
-    return LddmmToGlobalOutput(tmp_path)
+    return generate_lddmm_output(tmp_path)
 
 
 @pytest.mark.slow
@@ -89,3 +58,73 @@ def test_multi_output_view(lddmm_output):
     view.dataset
     view.local_reconstructed_points
     view.global_points
+
+
+@pytest.mark.slow
+@pytest.mark.deformetrica
+@pytest.mark.smoke
+def test_euclidean_distances(lddmm_output):
+    evaluator = PersistentEvaluator(
+        EuclideanDistances(lddmm_output.path),
+        "post_dists_eucl",
+    ).run(overwrite=True, continue_on_error=False)
+
+    assert evaluator.manifest.status == "completed"
+
+    res = evaluator.results
+
+    res.local_reconstruction_error()
+
+
+@pytest.mark.slow
+@pytest.mark.deformetrica
+@pytest.mark.smoke
+def test_lddmm_distances(lddmm_output):
+    evaluator = LddmmDistances(lddmm_output.path)
+
+    evaluator.local_atlas_fit_error()
+    evaluator.global_atlas_fit_error()
+    evaluator.local_atlas_distance()
+    evaluator.global_atlas_distance()
+
+
+@pytest.mark.slow
+@pytest.mark.deformetrica
+@pytest.mark.smoke
+@pytest.mark.redundant
+def test_lddmm_distances_all(lddmm_output):
+    evaluator = PersistentEvaluator(
+        LddmmDistances(lddmm_output.path),
+        "post_dists_lddmm",
+    ).run(overwrite=True, continue_on_error=False)
+
+    assert evaluator.manifest.status == "completed"
+
+
+@pytest.mark.slow
+@pytest.mark.deformetrica
+@pytest.mark.smoke
+def test_multi_distances(lddmm_output):
+    evaluator = EuclideanDistances(lddmm_output.path)
+
+    multi = MultiDistanceResults({"left": evaluator, "right": evaluator})
+
+    multi.local_reconstruction_error()
+    multi.global_pairwise()
+
+
+@pytest.mark.slow
+@pytest.mark.deformetrica
+@pytest.mark.smoke
+def test_multi_distances_with_persisted(lddmm_output):
+    evaluator = PersistentEvaluator(
+        EuclideanDistances(lddmm_output.path),
+        "post_dists_eucl",
+    ).run(overwrite=True, continue_on_error=False)
+
+    res = evaluator.results
+
+    multi = MultiDistanceResults({"left": res, "right": res})
+
+    multi.local_reconstruction_error()
+    multi.global_pairwise()

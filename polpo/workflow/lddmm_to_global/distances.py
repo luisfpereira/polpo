@@ -1,14 +1,10 @@
 from dataclasses import dataclass
-from functools import cached_property
 from pathlib import Path
 
 from polpo.dataset import Dataset
 from polpo.distmat import PairwiseDistances
 from polpo.ext.numpy.io import load_dict, save_dict_as_array
 from polpo.io.json import load_json
-from polpo.surface_mesh.deformetrica.geometry import LddmmMetric
-from polpo.surface_mesh.euclidean import EuclideanSurfaces
-from polpo.surface_mesh.varifold.geometry import VarifoldMetric
 from polpo.utils.dict_ import merge_dicts
 from polpo.utils.np import pairwise_dists
 from polpo.workflow.task import TaskRunner
@@ -52,12 +48,6 @@ LOADERS_BY_KIND = {
     "dataset": _load_distances,
 }
 
-REGISTRATION_TASKS = dict(
-    [
-        _task("local_atlas_to_reconstructed"),
-        _task("global_atlas_to_global"),
-    ]
-)
 
 DISTANCE_TASKS = dict(
     [
@@ -69,20 +59,10 @@ DISTANCE_TASKS = dict(
         _task("local_pairwise", pairwise=True),
         _task("local_reconstructed_pairwise", pairwise=True),
         _task("global_pairwise", pairwise=True),
+        _task("local_atlas_distance"),
+        _task("global_atlas_distance"),
     ]
 )
-
-
-def varifold_metric_from_results(data, engine="auto"):
-    sigma = data["kernel_tuning"]["sigma_var"]
-    return VarifoldMetric(sigma=sigma, engine=engine)
-
-
-def _reconstruction_error(registration_res, dist_fnc):
-    return dist_fnc(
-        registration_res.point.as_surface(),
-        registration_res.reconstructed.as_surface(),
-    )
 
 
 def _atlas_reconstruction_error(atlas_res, dist_fnc):
@@ -93,58 +73,83 @@ def _atlas_reconstruction_error(atlas_res, dist_fnc):
         return id_
 
     return {
-        _id_to_key(point.id): dist_fnc(point.as_surface(), cmp_point.as_surface())
-        for point, cmp_point in zip(atlas_res.points, atlas_res.reconstructed)
+        _id_to_key(point.id): dist_fnc(point, reconstructed)
+        for point, reconstructed in zip(
+            atlas_res.points,
+            atlas_res.reconstructed,
+        )
     }
 
 
-def _parallel_transport_res_error(transport_res, atlas, dist_fnc):
-    return dist_fnc(
-        transport_res.reconstructed.as_surface(),
-        atlas,
-    )
-
-
 class DistanceEvaluator:
+    """Evaluate geometric discrepancies for an LDDMM-to-global output.
+
+    Parameters
+    ----------
+    source : LddmmToGlobalOutput
+        Protocol output providing persisted shapes and registration artifacts.
+    metric : object
+        Metric exposing a ``dist`` method used to evaluate geometric
+        discrepancies.
+    """
+
     def __init__(self, source, metric):
         self.source = source
         self.metric = metric
 
+    def _dist(self, point_a, point_b):
+        return self.metric.dist(
+            point_a.as_surface(),
+            point_b.as_surface(),
+        )
+
     def local_reconstruction_error(self):
-        # compares original against reconstructed after registration
+        """Compute distances between aligned shapes and local reconstructions."""
         return self.source.mapped_view.local_registrations.map_values(
-            _reconstruction_error,
-            dist_fnc=self.metric.dist,
+            lambda registration: self._dist(
+                registration.point,
+                registration.reconstructed,
+            )
         ).flatten()
 
     def local_atlas_fit_error(self):
-        # compares original against reconstructed during deterministic atlas
+        """Compute distances between atlas input shapes and their local-atlas reconstructions."""
         errors = self.source.mapped_view.local_atlases.map_values(
             _atlas_reconstruction_error,
-            dist_fnc=self.metric.dist,
+            dist_fnc=self._dist,
         )
         return Dataset(merge_dicts(errors.values_list()))
 
     def global_atlas_fit_error(self):
-        # compares local atlas against reconstructed local atlas during deterministic atlas
-        return _atlas_reconstruction_error(
-            self.source.global_atlas,
-            dist_fnc=self.metric.dist,
+        """Compute distances between local atlases and their global-atlas reconstructions."""
+        return Dataset(
+            _atlas_reconstruction_error(
+                self.source.global_atlas,
+                dist_fnc=self._dist,
+            )
         )
 
     def local_to_global_reconstruction_error(self):
-        # compares global against registration from local
-        # establishes transport direction
+        """Compute distances between the global atlas and local-to-global registration reconstructions.
+
+        This reflects numerical error in establishing the local-to-global geodesic.
+        """
         return self.source.mapped_view.registrations_to_global_atlas.map_values(
-            _reconstruction_error,
-            dist_fnc=self.metric.dist,
+            lambda registration: self._dist(
+                registration.point,
+                registration.reconstructed,
+            )
         )
 
     def local_to_global_transport_error(self):
-        # error induced by transport direction
-        # only collecting one per outer due to the nature of the algorithm
-        # must compare with local_to_global_reconstruction_error
+        """Compute distances between the global atlas and local-to-global transport reconstructions.
 
+        This reflects numerical error in constructing the local-to-global geodesic
+        direction used for parallel transport.
+        Since this direction is defined once
+        for each local atlas, only one transport reconstruction is evaluated per
+        outer key.
+        """
         selected = {}
         for outer_key, inner in self.source.mapped_view.transports.items():
             try:
@@ -161,99 +166,159 @@ class DistanceEvaluator:
         # NB: only fan has reconstructed
 
         return trans_res.map_values(
-            _parallel_transport_res_error,
-            atlas=self.source.global_atlas_point.as_surface(),
-            dist_fnc=self.metric.dist,
+            lambda transport: self._dist(
+                self.source.global_atlas_point,
+                transport.reconstructed,
+            )
         )
 
     def local_pairwise(self):
+        """Compute pairwise distances between rigidly aligned input shapes."""
         return self._pairwise(self.source.mapped_view.dataset.flatten())
 
     def local_reconstructed_pairwise(self):
+        """Compute pairwise distances between shapes reconstructed from local registrations."""
         return self._pairwise(
             self.source.mapped_view.local_reconstructed_points.flatten()
         )
 
     def global_pairwise(self):
+        """Compute pairwise distances between shapes represented at the global atlas."""
         return self._pairwise(self.source.mapped_view.global_points.flatten())
 
-    def _pairwise(self, data):
-        surfaces = data.map_values(lambda point: point.as_surface())
+    def local_atlas_distance(self):
+        """Compute distances between local atlases and locally reconstructed shapes."""
+        local_atlases = self.source.mapped_view.local_atlases_points
 
+        return self.source.mapped_view.local_reconstructed_points.map_items(
+            lambda outer_key, _, point: self._dist(
+                local_atlases[outer_key],
+                point,
+            )
+        ).flatten()
+
+    def global_atlas_distance(self):
+        """Compute distances between the global atlas and globally represented shapes."""
+        return self.source.mapped_view.global_points.map_values(
+            lambda point: self._dist(
+                self.source.global_atlas_point,
+                point,
+            )
+        ).flatten()
+
+    def _pairwise(self, data):
+        """Compute pairwise distances between surface-valued points.
+
+        Parameters
+        ----------
+        data : Dataset
+            Dataset of points convertible to surfaces.
+
+        Returns
+        -------
+        distances : PairwiseDistances
+            Pairwise distances indexed by the input dataset keys.
+        """
         return PairwiseDistances(
-            surfaces.keys_list(),
+            data.keys_list(),
             pairwise_dists(
-                surfaces.values_list(),
-                self.metric.dist,
+                data.values_list(),
+                self._dist,
                 as_matrix=False,
             ),
         )
 
 
 class VarifoldDistances(DistanceEvaluator):
+    """Evaluate varifold distances for an LDDMM-to-global output."""
+
     def __init__(self, experiment_dir, engine="auto"):
         source = LddmmToGlobalOutput(experiment_dir)
 
-        metric = varifold_metric_from_results(
-            source.results,
-            engine=engine,
-        )
-
-        super().__init__(source, metric)
+        super().__init__(source, source.instantiate_varifold_metric(engine=engine))
 
 
 class EuclideanDistances(DistanceEvaluator):
+    """Evaluate Euclidean distances for an LDDMM-to-global output."""
+
     def __init__(self, experiment_dir):
         source = LddmmToGlobalOutput(experiment_dir)
 
-        metric = EuclideanSurfaces(
-            faces=source.global_atlas_point.as_surface().faces
-        ).metric
-
-        super().__init__(source, metric)
+        super().__init__(source, source.instantiate_euclidean_metric())
 
 
-class LddmmDistances:
+class LddmmDistances(DistanceEvaluator):
+    """Evaluate LDDMM distances for an LDDMM-to-global output."""
+
     def __init__(self, experiment_dir):
         source = LddmmToGlobalOutput(experiment_dir)
-        metric = LddmmMetric(
-            experiment_dir,
-            kernel_width=source.results["kernel_tuning"]["sigma_vel"],
+        self.source = source
+
+        super().__init__(source, source.instantiate_lddmm_metric())
+
+    def _dist(self, point_a, point_b):
+        return self.metric.dist(point_a, point_b)
+
+    def local_atlas_fit_error(self):
+        """Compute LDDMM distances from local atlases to their input shapes."""
+        errors = self.source.mapped_view.local_atlases.map_values(
+            lambda atlas: {
+                point.id: self.metric.norm(tangent_vec)
+                for point, tangent_vec in zip(
+                    atlas.points,
+                    atlas.tangent_vecs,
+                )
+            }
+        )
+        return Dataset(merge_dicts(errors.values_list()))
+
+    def global_atlas_fit_error(self):
+        """Compute LDDMM distances from the global atlas to the local atlases."""
+        atlas = self.source.global_atlas
+
+        return Dataset(
+            {
+                point.id: self.metric.norm(tangent_vec)
+                for point, tangent_vec in zip(
+                    atlas.points,
+                    atlas.tangent_vecs,
+                )
+            }
         )
 
-        self.source = source
-        self.metric = metric
-
-    def local_atlas_to_reconstructed(self):
-        # distance from local atlas to reconstructed
+    def local_atlas_distance(self):
+        """Compute distances between local atlases and locally reconstructed shapes."""
         return self.source.mapped_view.local_registrations.map_values(
-            # TODO: add norm
-            lambda x: self.metric.norm(x.tangent_vec),
+            lambda registration: self.metric.norm(registration.tangent_vec),
         ).flatten()
 
-    def global_atlas_to_global(self):
-        # distance from local atlas to reconstructed
-        # NB: parallel transport preserves distance
+    def global_atlas_distance(self):
+        """Compute distances between the global atlas and globally represented shapes."""
         return self.source.mapped_view.global_shoots.map_values(
-            lambda x: self.metric.norm(x.tangent_vec),
+            lambda shoot: self.metric.norm(shoot.tangent_vec),
         ).flatten()
 
 
 class PersistentEvaluator(TaskRunner):
+    """Evaluate distance tasks and persist their results to disk.
+
+    Parameters
+    ----------
+    evaluator : DistanceEvaluator
+        Distance evaluator providing the task computations.
+    results_dir : path-like
+        Directory where computed distance results are stored.
+    task_specs : mapping or None
+        Specifications of the distance tasks to execute and persist.
+    """
+
     def __init__(self, evaluator, results_dir="post_dists", task_specs=None):
         results_dir = Path(results_dir)
         if not results_dir.is_absolute():
             results_dir = evaluator.source.path / results_dir
 
         if task_specs is None:
-            if isinstance(evaluator, DistanceEvaluator):
-                task_specs = DISTANCE_TASKS
-            elif isinstance(evaluator, LddmmDistances):
-                task_specs = REGISTRATION_TASKS
-            else:
-                raise ValueError(
-                    f"No default task_specs for {type(evaluator).__name__}"
-                )
+            task_specs = DISTANCE_TASKS
 
         self.evaluator = evaluator
 
@@ -263,6 +328,7 @@ class PersistentEvaluator(TaskRunner):
         super().__init__(results_dir)
 
     def tasks(self):
+        """Return the distance tasks to execute."""
         return {name: self._make_task(name) for name in self.task_specs}
 
     def _make_task(self, name):
@@ -285,26 +351,43 @@ class PersistentEvaluator(TaskRunner):
 
     @property
     def results(self):
+        """Return lazy access to the persisted distance results."""
         return DistanceResults.from_dir(self.results_dir)
 
 
-class _AttrAccessMixin:
-    def __getattr__(self, name):
-        try:
-            return self[name]
-        except KeyError:
-            raise AttributeError(name) from None
+class DistanceResults:
+    """Lazy access to persisted distance results.
 
+    Completed tasks are exposed as callable attributes and loaded from disk
+    on first access.
 
-class DistanceResults(_AttrAccessMixin):
+    Parameters
+    ----------
+    results_dir : path-like
+        Directory containing persisted distance results.
+    task_specs : mapping
+        Specifications for the available persisted tasks.
+    """
+
     def __init__(self, results_dir, task_specs):
         self.results_dir = Path(results_dir)
         self.task_specs = task_specs
-
         self._cache = {}
 
     @classmethod
     def from_dir(cls, results_dir):
+        """Create distance results from a persisted task manifest.
+
+        Parameters
+        ----------
+        results_dir : path-like
+            Directory containing the task manifest and persisted results.
+
+        Returns
+        -------
+        results : DistanceResults
+            Lazy accessor for completed distance tasks.
+        """
         results_dir = Path(results_dir)
         manifest = load_json(results_dir / "manifest.json")
         task_specs = {
@@ -318,60 +401,37 @@ class DistanceResults(_AttrAccessMixin):
         }
         return cls(results_dir, task_specs=task_specs)
 
-    @property
-    def manifest_path(self):
-        return self.results_dir / "manifest.json"
-
-    @cached_property
-    def manifest(self):
-        return load_json(self.manifest_path)
-
-    def __getitem__(self, task):
+    def __getattr__(self, task):
+        """Return a lazy loader for a persisted task result."""
         if task not in self.task_specs:
-            raise KeyError(task)
+            raise AttributeError(task)
 
-        if not self.is_available(task):
-            raise KeyError(f"Distance result {task!r} is not available.")
+        def _load():
+            if task not in self._cache:
+                spec = self.task_specs[task]
+                self._cache[task] = spec.load(self.results_dir / spec.filename)
 
-        if task not in self._cache:
-            spec = self.task_specs[task]
-            self._cache[task] = spec.load(self.results_dir / spec.filename)
+            return self._cache[task]
 
-        return lambda: self._cache[task]
-
-    def __iter__(self):
-        return (task for task in self.task_specs if self.is_available(task))
-
-    def __len__(self):
-        return sum(self.is_available(task) for task in self.task_specs)
-
-    def __contains__(self, task):
-        return self.is_available(task)
-
-    def is_available(self, task):
-        if task not in self.task_specs:
-            return False
-
-        task_info = self.manifest.get("tasks", {}).get(task, {})
-        return task_info.get("status") == "completed"
-
-    def clear_cache(self, task=None):
-        if task is None:
-            self._cache.clear()
-            return
-
-        self._cache.pop(task, None)
-
-    def refresh(self):
-        self.clear_cache()
-        self.__dict__.pop("manifest", None)
-
-    @classmethod
-    def combine(cls, results):
-        return MultiDistanceResults(results)
+        return _load
 
 
-class MultiDistanceResults(_AttrAccessMixin):
+class MultiDistanceResults:
+    """Combine corresponding distance results across labeled sources.
+
+    Task attributes are evaluated for each source and merged into a single
+    result. Keys or labels are prefixed by the corresponding source label to
+    preserve their origin.
+
+    Parameters
+    ----------
+    results : mapping
+        Mapping from source labels to distance evaluators or persisted distance
+        results exposing the same task interface.
+    prefix_key : callable or None
+        Function mapping a source label and result key to a combined key.
+    """
+
     def __init__(self, results, prefix_key=None):
         self._results = results
         if prefix_key is None:
@@ -384,24 +444,29 @@ class MultiDistanceResults(_AttrAccessMixin):
 
         self._prefix_key = prefix_key
 
-    def __getitem__(self, task):
-        values = [
-            self._adapt(
-                label,
-                res[task](),
-            )
-            for label, res in self._results.items()
-        ]
-        return lambda: self._merge(values)
+    def __getattr__(self, task):
+        """Return a callable combining a task across all sources."""
+        if not all(hasattr(res, task) for res in self._results.values()):
+            raise AttributeError(task)
+
+        def _compute():
+            values = [
+                self._adapt(label, getattr(res, task)())
+                for label, res in self._results.items()
+            ]
+            return type(values[0]).merge_many(values)
+
+        return _compute
 
     def _adapt(self, label, value):
+        """Prefix keys or labels of a result with its source label."""
         if isinstance(value, Dataset):
             return value.map_keys(lambda key: self._prefix_key(label, key))
 
         if isinstance(value, PairwiseDistances):
             return value.map_labels(lambda key: self._prefix_key(label, key))
 
-        return value
-
-    def _merge(self, values):
-        return type(values[0]).merge(values)
+        raise TypeError(
+            f"Cannot adapt value of type {type(value).__name__!r} for label {label!r}. "
+            f"Expected Dataset or PairwiseDistances."
+        )
