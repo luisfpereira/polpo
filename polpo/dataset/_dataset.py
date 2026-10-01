@@ -40,19 +40,6 @@ class DatasetMapping(Mapping):
 
         return type(self)(data)
 
-    @classmethod
-    def merge_many(cls, datasets):
-        data = {}
-
-        for dataset in datasets:
-            overlap = data.keys() & dataset.keys()
-            if overlap:
-                raise ValueError(f"Duplicate keys: {overlap}")
-
-            data.update(dataset.items())
-
-        return cls(data)
-
 
 class Dataset(DatasetMapping):
     def values_list(self):
@@ -224,6 +211,19 @@ class Dataset(DatasetMapping):
             raise ValueError("Datasets do not have matching keys.")
 
         return cls({key: func([dataset[key] for dataset in datasets]) for key in keys})
+
+    @classmethod
+    def merge_many(cls, datasets):
+        data = {}
+
+        for dataset in datasets:
+            overlap = data.keys() & dataset.keys()
+            if overlap:
+                raise ValueError(f"Duplicate keys: {overlap}")
+
+            data.update(dataset.items())
+
+        return cls(data)
 
     @classmethod
     def from_keys(cls, keys, func):
@@ -532,6 +532,19 @@ class NestedDataset(DatasetMapping):
         return Dataset.zip_many(
             [dataset.flatten() for dataset in datasets], func
         ).nest()
+
+    @classmethod
+    def merge_many(cls, datasets):
+        data = {}
+
+        for dataset in datasets:
+            for outer_key, inner_dataset in dataset.items():
+                if outer_key in data:
+                    inner_dataset = Dataset(data[outer_key]).merge(inner_dataset).data
+
+                data[outer_key] = inner_dataset
+
+        return cls(data)
 
     @classmethod
     def from_keys(cls, nested_keys, func):

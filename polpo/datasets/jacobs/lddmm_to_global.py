@@ -90,7 +90,7 @@ def prepare_inputs(
         struct=struct,
         subject_ids=subject_ids,
         derivative=derivative,
-        data_dir=data_dir,
+        data_dir=data_dir.as_posix(),
     )
 
     dataset = load_dataset(
@@ -104,7 +104,9 @@ def prepare_inputs(
     session_to_week = NestedKeyMap.from_inner_key_map(get_session_to_week())
 
     atlas_inputs = _select_atlas_inputs(dataset, session_to_week)
-    atlas_only_inputs = atlas_inputs.select_outer(is_pregnancy_subject)
+    atlas_only_inputs = atlas_inputs.filter_keys(
+        lambda subject, _: is_pregnancy_subject(subject)
+    )
 
     # ignores subjects with no atlas keys
     missing_atlas = set(dataset.keys_list()) - set(atlas_inputs.keys_list())
@@ -116,7 +118,8 @@ def prepare_inputs(
 
     # keeps only pregnancy
     dataset_ = (
-        dataset.map_keys(session_to_week)
+        dataset.filter_keys(lambda subject, _: is_pregnancy_subject(subject))
+        .map_keys(session_to_week)
         .filter_keys(lambda _, time: 0 <= time <= 42)
         .map_keys(session_to_week.invert())
     )
