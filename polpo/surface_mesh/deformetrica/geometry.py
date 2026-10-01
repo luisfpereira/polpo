@@ -14,6 +14,7 @@ from .representations import (
     Momenta,
     TangentVector,
     Velocity,
+    ZeroTangentVector,
 )
 from .results import (
     RegistrationResult,
@@ -516,6 +517,44 @@ class LddmmMetric:
 
         return data
 
+    def squared_dist(self, point_a, point_b):
+        """Compute the squared LDDMM distance between two points.
+
+        Registration is performed from ``point_a`` to ``point_b`` and the squared
+        norm of the resulting tangent vector is evaluated at ``point_a``.
+
+        Parameters
+        ----------
+        point_a : Point
+            Base point of the registration.
+        point_b : Point
+            Target point of the registration.
+
+        Returns
+        -------
+        squared_dist : float
+            Squared LDDMM distance between the two points.
+        """
+        tangent_vec = self.log(point=point_b, base_point=point_a)
+        return self.squared_norm(tangent_vec, base_point=point_a)
+
+    def dist(self, point_a, point_b):
+        """Compute the LDDMM distance between two points.
+
+        Parameters
+        ----------
+        point_a : Point
+            First point.
+        point_b : Point
+            Second point.
+
+        Returns
+        -------
+        distance : float
+            LDDMM distance between the two points.
+        """
+        return np.sqrt(self.squared_dist(point_a, point_b))
+
     def squared_norm(self, tangent_vec, base_point=None):
         r"""Compute the squared LDDMM norm of a tangent vector.
 
@@ -544,6 +583,9 @@ class LddmmMetric:
             Squared RKHS norm of the tangent vector.
         """
         # NB: base_point is ignored
+        if isinstance(tangent_vec, ZeroTangentVector):
+            return 0.0
+
         control_points_ = tangent_vec.control_points.as_array()
         control_points, momenta = self._move_data(
             control_points_,

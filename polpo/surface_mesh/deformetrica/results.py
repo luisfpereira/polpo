@@ -8,7 +8,14 @@ import polpo.ext.deformetrica.io as pdefoio
 from polpo.io.json import dump_json, load_json
 from polpo.surface_mesh.deformetrica.io import write_vtk_polydata
 
-from .representations import ControlPoints, Flow, Momenta, Point, TangentVector
+from .representations import (
+    ControlPoints,
+    Flow,
+    Momenta,
+    Point,
+    TangentVector,
+    ZeroTangentVector,
+)
 
 
 class _Result(ABC):
@@ -376,6 +383,11 @@ class DeterministicAtlasOneDir(_BaseDeterministicAtlasResult):
 
         path = self.dirname / f"{self.id}.vtk"
         write_vtk_polydata(path, self.points[0].as_surface())
+
+    @property
+    def tangent_vecs(self):
+        """Tangent vectors from the atlas template to each observation."""
+        return [ZeroTangentVector()]
 
 
 class DeterministicAtlasResult(_BaseDeterministicAtlasResult):

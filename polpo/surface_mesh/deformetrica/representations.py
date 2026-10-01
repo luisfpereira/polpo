@@ -314,6 +314,10 @@ class TangentVector:
         )
 
 
+class ZeroTangentVector:
+    """Zero LDDMM tangent vector."""
+
+
 class StoredTangentVector(TangentVector):
     """Filesystem-backed LDDMM tangent vector.
 
