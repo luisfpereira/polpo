@@ -54,6 +54,7 @@ class TaskRunner(ABC):
         self.timer = Timer()
         self.logger = logger or _get_default_logger(self)
 
+    @classmethod
     def from_callable(cls, fn, state_dir=None, name=None, metadata=None, logger=None):
         """Create a task runner from a callable.
 
