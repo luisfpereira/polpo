@@ -200,6 +200,7 @@ class GroupedMeshRankSelectionResult:
         np.save(results_dir / "errors.npy", self.errors)
 
         dump_json(
+            results_dir / "params.json",
             {
                 "n_parts": self.n_parts,
                 "n_groups": self.n_groups,
@@ -207,7 +208,6 @@ class GroupedMeshRankSelectionResult:
                 "seed": self.seed,
                 "keys": self.keys,
             },
-            results_dir / "params.json",
         )
 
         return self

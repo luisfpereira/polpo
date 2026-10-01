@@ -175,18 +175,18 @@ class TruncatedCVEvaluationResult:
         )
 
         dump_json(
+            results_dir / "params.json",
             {
                 "keys": self.keys,
                 "truncations": self.truncations,
                 "held_out_groups": self.held_out_groups,
             },
-            results_dir / "params.json",
         )
 
         if self.fit_diagnostics is not None:
             dump_json(
-                self.fit_diagnostics,
                 results_dir / "fit_diagnostics.json",
+                self.fit_diagnostics,
             )
 
         return self

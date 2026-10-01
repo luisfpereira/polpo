@@ -79,8 +79,9 @@ class FrechetMean:
         fingerprint = config.compute_fingerprint()
 
         if not self.metric._can_reuse(result, fingerprint):
+            # ensures all the meshes are stored
+            dataset = {point.id: point.as_vtk_path() for point in X}
             if len(X) > 1:
-                dataset = {point.id: point.as_vtk_path() for point in X}
                 pdefo.learning.estimate_deterministic_atlas(
                     targets=dataset,
                     output_dir=result.dirname,

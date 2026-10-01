@@ -3,7 +3,7 @@ import traceback
 import numpy as np
 
 from polpo.dataset import Dataset, NestedDataset
-from polpo.io.json import dump_json
+from polpo.io.json import check_json_serializable, dump_json
 from polpo.surface_mesh.deformetrica import FrechetMean, Point
 from polpo.surface_mesh.registration import SurfaceRigidRegistration
 from polpo.surface_mesh.varifold.tuning import SigmaFromScale
@@ -69,6 +69,8 @@ class LddmmToGlobal:
 
         self.metadata = dict(metadata or {})
         self.random_state = random_state
+
+        check_json_serializable(self.metadata)
 
         self._reset()
 
@@ -316,9 +318,9 @@ class LddmmToGlobal:
 
     def _write(self):
         """Write protocol parameters, results, and timings to disk."""
-        dump_json(self.params_, self.results_dir / "params.json")
-        dump_json(self.results_, self.results_dir / "results.json")
-        dump_json(self.timer.as_dict(), self.results_dir / "time.json")
+        dump_json(self.results_dir / "params.json", self.params_)
+        dump_json(self.results_dir / "results.json", self.results_)
+        dump_json(self.results_dir / "time.json", self.timer.as_dict())
 
     def _record_failure(self, error):
         """Record information about a protocol failure."""

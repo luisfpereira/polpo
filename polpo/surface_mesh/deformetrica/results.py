@@ -39,7 +39,7 @@ class _Result(ABC):
         if cache is not None:
             params["cache"] = cache
 
-        return dump_json(params, self.params_path)
+        return dump_json(self.params_path, params)
 
     def read_params(self):
         """Read serialized result parameters.

@@ -140,7 +140,7 @@ class TaskRunner(ABC):
         """Write the current runner state to the manifest."""
         self.manifest_["resolved"] = dict(self.resolved_)
         self.manifest_["updated_at"] = utc_now()
-        dump_json(self.manifest_, self.manifest_path)
+        dump_json(self.manifest_path, self.manifest_)
 
     def _is_complete(self, task):
         """Return whether a task is marked as completed."""
