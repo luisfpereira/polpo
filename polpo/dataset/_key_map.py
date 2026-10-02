@@ -110,6 +110,22 @@ class NestedKeyMap:
             inner=inner,
         )
 
+    def complete(self, nested_keys):
+        """Complete a key map with identity mappings."""
+        outer = {
+            outer_key: self.outer.get(outer_key, outer_key) for outer_key in nested_keys
+        }
+
+        inner = {
+            outer_key: {
+                inner_key: self.inner.get(outer_key, {}).get(inner_key, inner_key)
+                for inner_key in inner_keys
+            }
+            for outer_key, inner_keys in nested_keys.items()
+        }
+
+        return type(self)(outer=outer, inner=inner)
+
     def _domain_is_subset(self, other):
         if not self.outer.keys() <= other.outer.keys():
             return False
@@ -157,52 +173,6 @@ class NestedKeyMap:
                 for outer_key in domain.outer
             },
         )
-
-    @classmethod
-    def from_dataset(
-        cls,
-        nested_dataset,
-        outer_map=None,
-        inner_map=None,
-    ):
-        """Create a codec from the keys of a nested dataset.
-
-        Parameters
-        ----------
-        nested_dataset : mapping
-            Nested mapping whose outer and inner keys are mapped.
-        outer_map : callable
-            Function mapping ``(index, outer_key)`` to an mapped outer key.
-            By default, outer keys are mapped as uppercase letters.
-        inner_map : callable
-            Function mapping ``(index, outer_key, inner_key)`` to an mapped
-            inner key. By default, inner keys are mapped by their index.
-
-        Returns
-        -------
-        NestedKeyCodec
-            Codec built from the keys of ``nested_dataset``.
-        """
-        if outer_map is None:
-            outer_map = lambda index, outer_key: index_to_letters(index)
-
-        if inner_map is None:
-            inner_map = lambda index, outer_key, inner_key: index
-
-        outer = {
-            outer_key: outer_map(index, outer_key)
-            for index, outer_key in enumerate(nested_dataset)
-        }
-
-        inner = {
-            outer_key: {
-                inner_key: inner_map(index, outer_key, inner_key)
-                for index, inner_key in enumerate(inner_dict)
-            }
-            for outer_key, inner_dict in nested_dataset.items()
-        }
-
-        return cls(outer, inner)
 
     @classmethod
     def from_inner_key_map(cls, inner):
@@ -353,6 +323,56 @@ class NestedKeyMap:
         )
 
 
+class NestedKeyEncoder:
+    """Encode nested keys into a reversible key map.
+
+    Parameters
+    ----------
+    outer_map : callable
+        Function mapping ``(index, outer_key)`` to an encoded outer key.
+        If ``None``, outer keys are encoded as uppercase letters.
+    inner_map : callable
+        Function mapping ``(index, outer_key, inner_key)`` to an encoded
+        inner key. If ``None``, inner keys are encoded by their index.
+    """
+
+    def __init__(self, outer_map=None, inner_map=None):
+        if outer_map is None:
+            outer_map = lambda index, outer_key: index_to_letters(index)
+
+        if inner_map is None:
+            inner_map = lambda index, outer_key, inner_key: index
+
+        self.outer_map = outer_map
+        self.inner_map = inner_map
+
+    def __call__(self, nested_keys):
+        """Encode nested keys.
+
+        Parameters
+        ----------
+        nested_keys : mapping
+            Mapping from outer keys to iterables of inner keys.
+
+        Returns
+        -------
+        NestedKeyMap
+            Mapping from the original nested keys to their encoded keys.
+        """
+        outer = {
+            outer_key: self.outer_map(index, outer_key)
+            for index, outer_key in enumerate(nested_keys)
+        }
+        inner = {
+            outer_key: {
+                inner_key: self.inner_map(index, outer_key, inner_key)
+                for index, inner_key in enumerate(inner_dict)
+            }
+            for outer_key, inner_dict in nested_keys.items()
+        }
+        return NestedKeyMap(outer, inner)
+
+
 class MappedView:
     """View of an object with remapped outputs.
 
@@ -378,6 +398,15 @@ class MappedView:
         self._include = include
         self._exclude = exclude or set()
 
+    def _remap(self, value):
+        if hasattr(value, "map_keys"):
+            return value.map_keys(self.key_map)
+
+        if hasattr(value, "map_labels"):
+            return value.map_labels(self.key_map)
+
+        return value
+
     def __getattr__(self, name):
         """Get an attribute from the underlying object and remap its output."""
         attr = getattr(self._obj, name)
@@ -386,29 +415,17 @@ class MappedView:
             self._include is None or name in self._include
         ) and name not in self._exclude
 
+        if not should_map:
+            return attr
+
         if callable(attr):
 
             def wrapped(*args, **kwargs):
-                result = attr(*args, **kwargs)
-                if should_map:
-                    if hasattr(result, "map_keys"):
-                        return result.map_keys(self.key_map)
-
-                    if hasattr(result, "map_labels"):
-                        return result.map_labels(self.key_map)
-
-                return result
+                return self._remap(attr(*args, **kwargs))
 
             return wrapped
 
-        if should_map:
-            if hasattr(attr, "map_keys"):
-                return attr.map_keys(self.key_map)
-
-            if hasattr(attr, "map_labels"):
-                return attr.map_labels(self.key_map)
-
-        return attr
+        return self._remap(attr)
 
     def with_key_map(self, key_map):
         """Return a view with an additional key mapping.

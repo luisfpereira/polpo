@@ -1,6 +1,6 @@
 import logging
 
-from polpo.dataset import NestedKeyMap
+from polpo.dataset import NestedKeyEncoder, NestedKeyMap
 from polpo.datasets.jacobs.mesh import load_dataset
 from polpo.neuroimaging.naming import (
     get_all_subcortical_structs,
@@ -126,7 +126,7 @@ def prepare_inputs(
     dataset_ = dataset_.merge(dataset.select_inner(atlas_inputs))
 
     # encode dataset keys for manageable folder names
-    key_codec = NestedKeyMap.from_dataset(dataset_)
+    key_codec = NestedKeyEncoder()(dataset_.nested_keys())
 
     metadata["key_map"] = key_codec.to_dict()
 
