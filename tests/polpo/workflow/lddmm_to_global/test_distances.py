@@ -1,26 +1,12 @@
-from pathlib import Path
-
 import pytest
 
-from polpo.workflow.lddmm_to_global import LddmmToGlobalOutput
 from polpo.workflow.lddmm_to_global.distances import (
     EuclideanDistances,
     PersistentEvaluator,
     VarifoldDistances,
 )
 
-
-@pytest.fixture(scope="session")
-def lddmm_output():
-    lddmm_output_dir = (Path("tests") / ".test_data" / "lddmm").resolve()
-
-    if not lddmm_output_dir.exists():
-        pytest.fail(
-            "LDDMM test output is missing. "
-            "Generate it with `python -m tests.generate_lddmm_output`."
-        )
-
-    return LddmmToGlobalOutput(lddmm_output_dir)
+from .fixtures import lddmm_output  # noqa: F401
 
 
 @pytest.mark.smoke

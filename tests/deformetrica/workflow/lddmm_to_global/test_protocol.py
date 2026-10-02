@@ -21,14 +21,12 @@ def lddmm_output(tmp_path_factory):
 
 
 @pytest.mark.slow
-@pytest.mark.deformetrica
 @pytest.mark.smoke
 def test_runs(lddmm_output):
     pass
 
 
 @pytest.mark.slow
-@pytest.mark.deformetrica
 @pytest.mark.smoke
 def test_output_view(lddmm_output):
     view = lddmm_output.view
@@ -48,7 +46,6 @@ def test_output_view(lddmm_output):
 
 
 @pytest.mark.slow
-@pytest.mark.deformetrica
 @pytest.mark.smoke
 def test_multi_output_view(lddmm_output):
     lddmm_multi_output = LddmmToGlobalMultiOutput([lddmm_output, lddmm_output])
@@ -61,7 +58,6 @@ def test_multi_output_view(lddmm_output):
 
 
 @pytest.mark.slow
-@pytest.mark.deformetrica
 @pytest.mark.smoke
 def test_euclidean_distances(lddmm_output):
     evaluator = PersistentEvaluator(
@@ -77,7 +73,6 @@ def test_euclidean_distances(lddmm_output):
 
 
 @pytest.mark.slow
-@pytest.mark.deformetrica
 @pytest.mark.smoke
 def test_lddmm_distances(lddmm_output):
     evaluator = LddmmDistances(lddmm_output.path)
@@ -89,7 +84,6 @@ def test_lddmm_distances(lddmm_output):
 
 
 @pytest.mark.slow
-@pytest.mark.deformetrica
 @pytest.mark.smoke
 @pytest.mark.redundant
 def test_lddmm_distances_all(lddmm_output):
@@ -102,7 +96,6 @@ def test_lddmm_distances_all(lddmm_output):
 
 
 @pytest.mark.slow
-@pytest.mark.deformetrica
 @pytest.mark.smoke
 def test_multi_distances(lddmm_output):
     evaluator = EuclideanDistances(lddmm_output.path)
@@ -114,7 +107,6 @@ def test_multi_distances(lddmm_output):
 
 
 @pytest.mark.slow
-@pytest.mark.deformetrica
 @pytest.mark.smoke
 def test_multi_distances_with_persisted(lddmm_output):
     evaluator = PersistentEvaluator(

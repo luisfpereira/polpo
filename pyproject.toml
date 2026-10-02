@@ -143,7 +143,6 @@ convention = "numpy"
 markers = [
     "slow: for slow tests.",
     "local: does not run in CI.",
-    "deformetrica: requires deformetrica",
     "vec: vectorization tests.",
     "ignore: deselect tests.",
     "random: tests that use randomized data.",
