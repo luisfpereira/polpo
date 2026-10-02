@@ -160,7 +160,7 @@ class LddmmToGlobalOutput:
         """View using the source keys when a key map is available."""
         key_map = self.params["metadata"].get("key_map")
         if key_map is not None:
-            key_map = NestedKeyMap.from_dict(key_map).invert()
+            key_map = NestedKeyMap(**key_map).invert()
 
         return LddmmToGlobalOutputView(self, key_map=key_map)
 
