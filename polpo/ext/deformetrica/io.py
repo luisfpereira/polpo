@@ -223,7 +223,7 @@ def find_subject_momenta(dirname, id_):
         Path to the subject-specific momenta file.
     """
     return _find_unique(
-        dirname.glob(f"*__Momenta*__subject_{id_}*.txt"),
+        dirname.glob(f"*__Momenta*__subject_{id_}[._]*txt"),
         f"momenta for subject {id_!r}",
     )
 
@@ -244,7 +244,7 @@ def find_subject_reconstruction(dirname, id_):
         Path to the reconstructed VTK file.
     """
     return _find_unique(
-        dirname.glob(f"*__Reconstruction*__subject_{id_}*.vtk"),
+        dirname.glob(f"*__Reconstruction*__subject_{id_}[._]*vtk"),
         f"reconstruction for subject {id_!r}",
     )
 
@@ -264,7 +264,7 @@ def find_subject_flow(dirname, id_):
     paths : list of pathlib.Path
         Flow VTK files ordered by time-point index.
     """
-    paths = list(dirname.glob(f"*__flow*__subject_{id_}*.vtk"))
+    paths = list(dirname.glob(f"*__flow*__subject_{id_}[._]*vtk"))
     return sorted(paths, key=_time_index)
 
 

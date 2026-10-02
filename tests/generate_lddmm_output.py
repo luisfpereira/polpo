@@ -1,7 +1,7 @@
 import string
 from pathlib import Path
 
-from polpo.dataset import NestedDataset
+from polpo.dataset import NestedDataset, NestedKeyMap
 from polpo.surface_mesh.core import Surface
 from polpo.surface_mesh.generation.blob import create_blob
 from polpo.workflow.lddmm_to_global import LddmmToGlobal, LddmmToGlobalOutput
@@ -27,10 +27,16 @@ def generate_lddmm_output(path):
 
     dataset = NestedDataset(data)
 
+    # to ensure glob works properly
+    key_map = NestedKeyMap.from_inner_key_map({"F": {2: 1, 3: 11}}).complete(
+        dataset.nested_keys()
+    )
+    dataset = dataset.map_keys(key_map)
+
     atlas_keys = {
         "D": [2, 3],
         "E": [2],
-        "F": [2, 3],
+        "F": [1, 11],
     }
     atlas_only_keys = {"D": [3], "E": [2]}
 

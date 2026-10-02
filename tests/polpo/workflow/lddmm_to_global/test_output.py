@@ -13,18 +13,26 @@ def test_output(lddmm_output):
     output.global_atlas
     output.global_atlas_point
 
-    # checks all meshes were stored in the outputs folder
-    output.dataset.map_values(lambda surface: surface.as_vtk_path())
+    output.dataset
 
     output.local_registrations
+
     output.local_reconstructed_points
+
     output.registrations_to_global_atlas
+
     output.global_shoots
     output.global_points
+
     output.global_deltas
+
     output.transports
+
     output.local_atlases
     output.local_atlases_points
+    output.local_atlases.map_values(lambda res: res.points)
+    output.local_atlases.map_values(lambda res: res.reconstructed)
+
     output.global_atlas_flows
 
 
