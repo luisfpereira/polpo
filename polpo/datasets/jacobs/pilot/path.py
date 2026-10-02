@@ -1,4 +1,4 @@
-from polpo.neuroimaging.bids import find_derivative_dir, select_folders
+from polpo.neuroimaging.bids import find_derivative_dir
 from polpo.neuroimaging.bids import select_folders as select_bids_folders
 
 

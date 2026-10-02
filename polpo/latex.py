@@ -86,51 +86,6 @@ def add_subsection(name):
     return r"""\subsection{{{name}}}""".format(name=name)
 
 
-def compile_latex(body, filename, figures_path=None):
-    if figures_path is None:
-        figures_path = filename.parent
-
-    figures_path = Path(figures_path).resolve()
-    graphicspath = rf"\graphicspath{{{{{figures_path}/}}}}"
-
-    document = rf"""
-\documentclass{{article}}
-
-\usepackage{{graphicx}}
-\usepackage{{float}}
-\usepackage{{caption}}
-\usepackage{{subcaption}}
-
-{graphicspath}
-
-\pagestyle{{empty}}
-
-\begin{{document}}
-{body}
-\end{{document}}
-"""
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-        tex_path = tmpdir / "document.tex"
-        tex_path.write_text(document)
-
-        subprocess.run(
-            [
-                "pdflatex",
-                "-interaction=nonstopmode",
-                "-halt-on-error",
-                tex_path.name,
-            ],
-            cwd=tmpdir,
-            check=True,
-        )
-
-        filename.write_bytes((tmpdir / "document.pdf").read_bytes())
-
-    return filename
-
-
 def make_latex_document(body, packages=None, preamble=None):
     if packages is None:
         packages = []
