@@ -1,6 +1,57 @@
 from polpo.utils import index_to_letters
 
 
+class KeyMap:
+    """Map keys between two key spaces.
+
+    Parameters
+    ----------
+    mapping : dict
+        Mapping from keys to mapped keys.
+    """
+
+    def __init__(self, mapping):
+        self.mapping = mapping
+
+    def invert(self):
+        """Return the inverse mapping."""
+        return type(self)({mapped_key: key for key, mapped_key in self.mapping.items()})
+
+    def chain_with(self, other):
+        """Return the key map obtained by applying this map then ``other``."""
+        unknown = set(self.mapping.values()) - set(other.mapping)
+        if unknown:
+            raise ValueError("Key map domains are incompatible.")
+
+        return type(self)(
+            {key: other.mapping[mapped_key] for key, mapped_key in self.mapping.items()}
+        )
+
+    def map(self, key):
+        """Map a key."""
+        return self.mapping[key]
+
+    def map_keys(self, keys):
+        """Map a collection of keys."""
+        return [self.map(key) for key in keys]
+
+    def __call__(self, key):
+        """Map a key."""
+        return self.map(key)
+
+    def to_dict(self):
+        """Return the key mapping as a dictionary."""
+        return self.mapping.copy()
+
+    def domain_keys(self):
+        """Return the keys in the mapping domain."""
+        return tuple(self.mapping)
+
+    def image_keys(self):
+        """Return the keys in the mapping image."""
+        return tuple(self.mapping.values())
+
+
 class NestedKeyMap:
     """Encode and keys of a nested dataset.
 
@@ -291,8 +342,36 @@ class NestedKeyMap:
             for outer_key, inner_map in self.inner.items()
         }
 
+    def flatten(self):
+        """Return the corresponding flat key map."""
+        return KeyMap(
+            {
+                (outer_key, inner_key): self.map(outer_key, inner_key)
+                for outer_key, inner_map in self.inner.items()
+                for inner_key in inner_map
+            }
+        )
+
 
 class MappedView:
+    """View of an object with remapped outputs.
+
+    Attributes and method results supporting ``map_keys`` are remapped using
+    ``key_map``. Mapping can be restricted to selected attribute names.
+
+    Parameters
+    ----------
+    obj : object
+        Object exposed through the view.
+    key_map : callable
+        Key mapping passed to ``map_keys`` or ``map_labels``.
+    include : collection of str
+        Attribute names eligible for mapping. If ``None``, all attributes are
+        eligible.
+    exclude : collection of str
+        Attribute names excluded from mapping.
+    """
+
     def __init__(self, obj, key_map, include=None, exclude=None):
         self._obj = obj
         self.key_map = key_map
@@ -300,6 +379,7 @@ class MappedView:
         self._exclude = exclude or set()
 
     def __getattr__(self, name):
+        """Get an attribute from the underlying object and remap its output."""
         attr = getattr(self._obj, name)
 
         should_map = (
@@ -310,18 +390,39 @@ class MappedView:
 
             def wrapped(*args, **kwargs):
                 result = attr(*args, **kwargs)
-                if should_map and hasattr(result, "map_keys"):
-                    return result.map_keys(self.key_map)
+                if should_map:
+                    if hasattr(result, "map_keys"):
+                        return result.map_keys(self.key_map)
+
+                    if hasattr(result, "map_labels"):
+                        return result.map_labels(self.key_map)
+
                 return result
 
             return wrapped
 
-        if should_map and hasattr(attr, "map_keys"):
-            return attr.map_keys(self.key_map)
+        if should_map:
+            if hasattr(attr, "map_keys"):
+                return attr.map_keys(self.key_map)
+
+            if hasattr(attr, "map_labels"):
+                return attr.map_labels(self.key_map)
 
         return attr
 
     def with_key_map(self, key_map):
+        """Return a view with an additional key mapping.
+
+        Parameters
+        ----------
+        key_map : callable
+            Key mapping to apply after the current mapping.
+
+        Returns
+        -------
+        MappedView
+            View with the composed key mapping.
+        """
         if self.key_map is not None:
             key_map = self.key_map.chain_with(key_map)
         return type(self)(
