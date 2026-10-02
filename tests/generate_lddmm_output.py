@@ -32,7 +32,7 @@ def generate_lddmm_output(path):
         "E": [2],
         "F": [2, 3],
     }
-    atlas_only_keys = {"D": [3]}
+    atlas_only_keys = {"D": [3], "E": [2]}
 
     protocol = LddmmToGlobal(
         known_correspondences=True,

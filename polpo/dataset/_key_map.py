@@ -290,3 +290,40 @@ class NestedKeyMap:
             self.map_outer(outer_key): tuple(inner_map.values())
             for outer_key, inner_map in self.inner.items()
         }
+
+
+class MappedView:
+    def __init__(self, obj, key_map, include=None, exclude=None):
+        self._obj = obj
+        self.key_map = key_map
+        self._include = include
+        self._exclude = exclude or set()
+
+    def __getattr__(self, name):
+        attr = getattr(self._obj, name)
+
+        should_map = (
+            self._include is None or name in self._include
+        ) and name not in self._exclude
+
+        if callable(attr):
+
+            def wrapped(*args, **kwargs):
+                result = attr(*args, **kwargs)
+                if should_map and hasattr(result, "map_keys"):
+                    return result.map_keys(self.key_map)
+                return result
+
+            return wrapped
+
+        if should_map and hasattr(attr, "map_keys"):
+            return attr.map_keys(self.key_map)
+
+        return attr
+
+    def with_key_map(self, key_map):
+        if self.key_map is not None:
+            key_map = self.key_map.chain_with(key_map)
+        return type(self)(
+            self._obj, key_map, include=self._include, exclude=self._exclude
+        )
