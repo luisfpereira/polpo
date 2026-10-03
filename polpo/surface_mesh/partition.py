@@ -1,8 +1,8 @@
 import numpy as np
 
-from polpo.pymetis import partition_graph
+from polpo.ext.pymetis import partition_graph
 
-from .topology import compute_vertex_adjacency
+from .ops.topology import compute_vertex_adjacency
 
 
 def partition_vertices_balanced(faces, n_parts, seed=None):

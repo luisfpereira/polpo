@@ -18,23 +18,19 @@ from polpo.surface_mesh.partition import (
 
 
 def compute_held_out_cols(labels, dim=3):
-    """Compute held-out row indices from outer-group identifiers.
-
-    Each fold holds out all rows belonging to a combination of
-    ``n_outer`` distinct outer groups.
+    """Compute held-out feature columns from vertex partition labels.
 
     Parameters
     ----------
-    outer_ids : array-like
-        Outer-group identifier associated with each row.
-    n_outer : int
-        Number of outer groups to hold out in each fold.
+    labels : array-like
+        Partition label associated with each mesh vertex.
+    dim : int
+        Number of features per vertex.
 
     Returns
     -------
-    held_out_cols : dict
-        Mapping from tuples of held-out outer-group identifiers to the
-        corresponding row indices.
+    held_out_cols : list of ndarray
+        Flattened feature-column indices associated with each vertex partition.
     """
     return [
         vertices_to_cols(vertices, dim=dim)
@@ -54,9 +50,6 @@ def vertices_to_cols(vertices, dim=3):
         Vertex indices.
     dim : int
         Number of features per vertex.
-    seed : int or None
-        Random seed used for mesh partitioning. If None, a seed is generated at
-        runtime.
 
     Returns
     -------
@@ -67,7 +60,23 @@ def vertices_to_cols(vertices, dim=3):
 
 
 class GroupedMeshRankSelection:
-    # TODO: is the splitter notion missing here?
+    """Select matrix rank by grouped mesh bi-cross-validation.
+
+    Rows are held out according to groups in the input dataset, while columns
+    are held out using spatially contiguous mesh partitions.
+
+    Parameters
+    ----------
+    n_parts : int
+        Number of mesh vertex partitions.
+    n_groups : int
+        Number of row groups held out in each fold.
+    center : bool
+        Whether to center the training block before decomposition.
+    seed : int or None
+        Random seed used for mesh partitioning.
+    """
+
     def __init__(self, n_parts=10, n_groups=1, center=False, seed=None):
         self.n_parts = n_parts
         self.n_groups = n_groups
@@ -92,6 +101,20 @@ class GroupedMeshRankSelection:
         return compute_held_out_rows(group_ids, n_groups=self.n_groups)
 
     def fit(self, mesh_faces, dataset):
+        """Fit bi-cross-validation blocks and select a rank.
+
+        Parameters
+        ----------
+        mesh_faces : array-like
+            Mesh faces used to construct spatial vertex partitions.
+        dataset : NestedDataset
+            Nested observations grouped along the outer level.
+
+        Returns
+        -------
+        self : GroupedMeshRankSelection
+            Fitted rank-selection object.
+        """
         held_out_cols = self._compute_held_out_cols(mesh_faces)
         held_out_rows = self._compute_held_out_rows(dataset)
 
@@ -128,6 +151,7 @@ class GroupedMeshRankSelection:
 
     @property
     def rank_(self):
+        """Selected rank."""
         return self.result_.rank
 
 
@@ -194,7 +218,18 @@ class GroupedMeshRankSelectionResult:
         )
 
     def to_dir(self, results_dir):
-        """Write results to disk."""
+        """Write rank-selection results to a directory.
+
+        Parameters
+        ----------
+        results_dir : pathlib.Path
+            Output directory.
+
+        Returns
+        -------
+        self : GroupedMeshRankSelectionResult
+            Result object.
+        """
         results_dir.mkdir(parents=True, exist_ok=True)
 
         np.save(results_dir / "errors.npy", self.errors)
@@ -214,7 +249,18 @@ class GroupedMeshRankSelectionResult:
 
     @classmethod
     def from_dir(cls, results_dir):
-        """Load rank-selection results from disk."""
+        """Load rank-selection results from a directory.
+
+        Parameters
+        ----------
+        results_dir : pathlib.Path
+            Directory containing saved rank-selection results.
+
+        Returns
+        -------
+        result : GroupedMeshRankSelectionResult
+            Loaded result object.
+        """
         errors = np.load(results_dir / "errors.npy")
         params = load_json(results_dir / "params.json")
 
