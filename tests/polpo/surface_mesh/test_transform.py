@@ -7,21 +7,45 @@ from polpo.testing.data import CaseData
 from polpo.testing.parametrizers import DataBasedParametrizer
 
 
-class DeltaTransformTestData(CaseData):
-    def transform_test_data(self):
-        template = Surface(
-            vertices=np.array(
-                [
-                    [0.0, 0.0, 0.0],
-                    [1.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                ]
-            ),
-            faces=np.array([[0, 1, 2]]),
-        )
+class InvertibleTransformTestCase:
+    def assert_image_equal(self, result, expected, atol):
+        np.testing.assert_allclose(result, expected, atol=atol)
 
+    def assert_domain_equal(self, result, expected, atol):
+        np.testing.assert_allclose(result, expected, atol=atol)
+
+    def test_transform(self, point, expected, atol=gs.atol):
+        result = self.transform(point)
+
+        self.assert_image_equal(result, expected, atol)
+
+    def test_inverse_after_transform(self, point, atol=gs.atol):
+        result = self.transform.inverse(self.transform(point))
+
+        self.assert_domain_equal(result, point, atol)
+
+
+class DeltaTransformTestData(CaseData):
+    def __init__(self, template=None):
+        super().__init__()
+
+        if template is None:
+            template = Surface(
+                vertices=np.array(
+                    [
+                        [0.0, 0.0, 0.0],
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                    ]
+                ),
+                faces=np.array([[0, 1, 2]]),
+            )
+
+        self.template = template
+
+    def transform_test_data(self):
         surface = Surface(
-            vertices=template.vertices
+            vertices=self.template.vertices
             + np.array(
                 [
                     [1.0, 2.0, 3.0],
@@ -29,36 +53,23 @@ class DeltaTransformTestData(CaseData):
                     [7.0, 8.0, 9.0],
                 ]
             ),
-            faces=template.faces,
+            faces=self.template.faces,
         )
 
         expected = np.arange(1.0, 10.0)
 
-        return [(template, surface, expected)]
+        return [(surface, expected)]
 
     def inverse_after_transform_test_data(self):
-        template, surface, _ = self.transform_test_data()[0]
-        return [(template, surface)]
+        surface, _ = self.transform_test_data()[0]
+        return [(surface,)]
 
 
-class TestDeltaTransform(metaclass=DataBasedParametrizer):
+class TestDeltaTransform(InvertibleTransformTestCase, metaclass=DataBasedParametrizer):
     testing_data = DeltaTransformTestData()
 
-    def test_transform(self, template, surface, expected, atol=gs.atol):
-        transform = DeltaTransform(template)
+    transform = DeltaTransform(testing_data.template)
 
-        result = transform(surface)
-
-        np.testing.assert_allclose(result, expected, atol=atol)
-
-    def test_inverse_after_transform(self, template, surface, atol=gs.atol):
-        transform = DeltaTransform(template)
-
-        result = transform.inverse(transform(surface))
-
-        np.testing.assert_allclose(
-            result.vertices,
-            surface.vertices,
-            atol=atol,
-        )
-        np.testing.assert_array_equal(result.faces, surface.faces)
+    def assert_domain_equal(self, result, expected, atol):
+        np.testing.assert_allclose(result.vertices, expected.vertices, atol=atol)
+        np.testing.assert_array_equal(result.faces, expected.faces)
