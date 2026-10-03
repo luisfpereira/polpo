@@ -14,6 +14,8 @@ def plot_nested(
     colors=None,
     include_label=False,
     kind="plot",
+    xlabel=None,
+    ylabel=None,
     **kwargs,
 ):
     if ax is None:
@@ -35,5 +37,8 @@ def plot_nested(
 
     if include_label:
         ax.legend()
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
     return ax

@@ -42,6 +42,7 @@ def plot_dist_comparison(
     ax=None,
     identity_line=True,
     rasterized=True,
+    **kwargs,
 ):
     if ax is None:
         fig, ax = plt.subplots()
@@ -67,6 +68,7 @@ def plot_dist_comparison(
                 color=colors[category],
                 label=category,
                 rasterized=rasterized,
+                **kwargs,
             )
 
         ax.legend()
