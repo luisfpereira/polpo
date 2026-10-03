@@ -22,11 +22,19 @@ class _PvPlotter(abc.ABC):
 
 
 class RegisteredMeshesColoredPlotter(_PvPlotter):
+    # TODO: should this take a metric?
+    # TODO: do geomfum version
     def _compute_vertex_dists(self, points_a, points_b):
         return np.linalg.norm(points_a - points_b, axis=-1)
 
     def add_meshes(
-        self, mesh_a, mesh_b, ref_dist=None, name="vertex diffs", cmap="bwr", **kwargs
+        self,
+        mesh_a,
+        mesh_b,
+        ref_dist=None,
+        name="vertex diffs",
+        cmap="coolwarm",
+        **kwargs,
     ):
         diffs = self._compute_vertex_dists(mesh_a.points, mesh_b.points)
 
@@ -40,6 +48,7 @@ class RegisteredMeshesColoredPlotter(_PvPlotter):
 
 
 class RegisteredMeshesGifPlotter(_PvPlotter):
+    # TODO: feature: two mesh sequences
     def __init__(
         self,
         gif_name=None,

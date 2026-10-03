@@ -79,7 +79,11 @@ class Pipeline(PreprocessingStep, DataLoader):
 
         out = data
         for step in self.steps:
-            out = step(out)
+            try:
+                out = step(out)
+            except Exception as e:
+                e.args = (f"Failed in step '{step}':\n{e.args[0]}",)
+                raise
 
         return out
 

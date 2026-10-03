@@ -6,7 +6,7 @@ import numpy as np
 from polpo.dataset import Dataset
 from polpo.neuroimaging._dispatch import read_geometry, select_mesh_paths
 from polpo.neuroimaging.freesurfer.mesh import read_geometry as _read_geometry
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 
 from .naming import (
     get_all_subcortical_structs,

@@ -2,9 +2,10 @@ import shutil
 import string
 
 import polpo.utils as putils
-from polpo.pipeline.mesh.registration import RigidAlignment
+from polpo.surface_mesh import Surface
 from polpo.surface_mesh.deformetrica import LddmmMetric, Point
 from polpo.surface_mesh.generation.blob import create_blob
+from polpo.surface_mesh.registration import SurfaceRigidRegistration
 
 if __name__ == "__main__":
     bump_amp = 0.2
@@ -16,12 +17,20 @@ if __name__ == "__main__":
     outputs_dir.mkdir(parents=True, exist_ok=False)
 
     raw_meshes = [
-        create_blob(resolution=10, bump_amp=bump_amp, n_bumps=5, smoothing_iter=10)
+        Surface.from_polydata(
+            create_blob(
+                resolution=10,
+                bump_amp=bump_amp,
+                n_bumps=5,
+                smoothing_iter=10,
+            )
+        )
         for _ in range(2)
     ]
 
-    prep_pipe = RigidAlignment(known_correspondences=True)
-    meshes = prep_pipe(raw_meshes)
+    meshes = SurfaceRigidRegistration(known_correspondences=True).against_same_target(
+        raw_meshes[0]
+    )(raw_meshes)
 
     kernel_width = 2 * bump_amp
     registration_kwargs = dict(
@@ -39,7 +48,7 @@ if __name__ == "__main__":
     points = [
         Point(
             id_=string.ascii_uppercase[index],
-            pv_surface=mesh,
+            surface=mesh,
             dirname=metric.dir_config.meshes_dir,
         )
         for index, mesh in enumerate(meshes)
