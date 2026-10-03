@@ -1,16 +1,17 @@
 import abc
+from collections.abc import Iterable
 
 import numpy as np
 import scipy
+from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, clone
 from sklearn.metrics import r2_score
+from sklearn.pipeline import FeatureUnion, Pipeline
+from sklearn.utils.validation import check_is_fitted
 from statsmodels.stats.multitest import multipletests
 
-from polpo.pipeline import Map
-from polpo.pipeline.mesh.conversion import ToVertices
 from polpo.sklearn.adapter import EvaluatedModel
-from polpo.sklearn.np import FlattenButFirst
 
-# NB: this applies to sklearn models
+from .adapter import TransformerAdapter
 
 
 class ModelEvaluator:
@@ -55,6 +56,236 @@ class MultiEvaluator(ModelEvaluator):
             results.update(results_)
 
         return self._update_results(results)
+
+
+class AdapterPipeline(Pipeline):
+    """sklearn compatible pipeline.
+
+    Names and adapts steps if needed.
+    Syntax sugar for `sklearn.Pipeline` without the
+    need to name steps, and with the ability of having
+    callables as steps.
+
+    Parameters
+    ----------
+    steps : list
+        Steps to be adapted.
+    """
+
+    # TODO: remove
+
+    def __init__(self, steps):
+        self._unadapted_steps = steps
+
+        adapted_steps = []
+        for index, step in enumerate(steps):
+            if not isinstance(step, Iterable):
+                step_name = f"step_{index}"
+                step = (step_name, step)
+
+            if not hasattr(step[1], "fit"):
+                step = (step[0], TransformerAdapter(step[1]))
+
+            adapted_steps.append(step)
+
+        super().__init__(steps=adapted_steps)
+
+    def __sklearn_clone__(self):
+        return AdapterPipeline(steps=self._unadapted_steps)
+
+    def predict_eval(self, X, y=None):
+        check_is_fitted(self)
+
+        Xt = X
+        for _, _, transform in self._iter(with_final=False):
+            if hasattr(transform, "transform_eval"):
+                Xt = transform.transform_eval(Xt, y)
+            else:
+                Xt = transform.transform(Xt)
+
+            if isinstance(Xt, tuple):
+                Xt, _ = Xt
+
+        last_step = self.steps[-1][1]
+        if hasattr(last_step, "predict_eval"):
+            return last_step.predict_eval(Xt, y)
+
+        return last_step.predict(Xt)
+
+    def transform_eval(self, X, y=None):
+        check_is_fitted(self)
+
+        Xt = X
+        for _, _, transform in self._iter():
+            # TODO: need to check if last has transform?
+            if hasattr(transform, "transform_eval"):
+                Xt = transform.transform_eval(Xt, y)
+            else:
+                Xt = transform.transform(Xt)
+
+        return Xt
+
+
+class AdapterFeatureUnion(FeatureUnion):
+    def __init__(
+        self,
+        transformer_list,
+        *,
+        n_jobs=None,
+        transformer_weights=None,
+        verbose=False,
+        verbose_feature_names_out=True,
+    ):
+        self._unadapted_transformer_list = transformer_list
+
+        adapted_transformer_list = []
+        for index, transformer in enumerate(transformer_list):
+            if not isinstance(transformer, Iterable):
+                transformer_name = f"step_{index}"
+                transformer = (transformer_name, transformer)
+
+            if not hasattr(transformer[1], "fit"):
+                transformer = (transformer[0], TransformerAdapter(transformer[1]))
+
+            adapted_transformer_list.append(transformer)
+
+        super().__init__(
+            adapted_transformer_list,
+            n_jobs=n_jobs,
+            transformer_weights=transformer_weights,
+            verbose=verbose,
+            verbose_feature_names_out=verbose_feature_names_out,
+        )
+
+    def __sklearn_clone__(self):
+        return AdapterFeatureUnion(
+            self._unadapted_transformer_list,
+            n_jobs=self.n_jobs,
+            transformer_weights=self.transformer_weights,
+            verbose=self.verbose,
+            verbose_feature_names_out=self.verbose_feature_names_out,
+        )
+
+    def transform_eval(self, X, y=None):
+        Xs = []
+
+        # TODO: make parallel
+        for _, transform, _ in self._iter():
+            # TODO: take weight into account
+            if hasattr(transform, "transform_eval"):
+                X_ = transform.transform_eval(X, y)
+            else:
+                X_ = transform.transform(X)
+
+            if isinstance(X_, tuple):
+                X_, _ = X_
+
+            Xs.append(X_)
+
+        Xt = self._hstack(Xs)
+        if y is None:
+            return Xt
+
+        return Xt, y
+
+
+class EvaluatedModel(BaseEstimator, TransformerMixin):
+    """Model with evaluation.
+
+    Wraps a model to log info.
+
+    Parameters
+    ----------
+    model : sklearn.BaseEstimator
+        Estimator being evaluated.
+    evaluator : polpo.ModelEvaluator
+        Model evaluator.
+    """
+
+    # TODO: need to think about inheritance
+    # TODO: split in two?
+
+    def __init__(self, model, evaluator):
+        super().__init__()
+        self.model = model
+        self.evaluator = evaluator
+        self.eval_result_ = None
+        self.eval_result_pred_ = None
+
+    def __getattr__(self, name):
+        """Delegate attribute access to the wrapped model."""
+        return getattr(self.model, name)
+
+    def __sklearn_clone__(self):
+        return EvaluatedModel(model=clone(self.model), evaluator=self.evaluator)
+
+    def fit(self, X, y=None):
+        self.model = self.model.fit(X, y)
+
+        self.eval_result_ = self.evaluator(self.model, X, y)
+        return self
+
+    def predict_eval(self, X, y=None):
+        check_is_fitted(self)
+
+        if hasattr(self.model, "predict_eval"):
+            y_pred = self.model.predict_eval(X, y)
+        else:
+            y_pred = self.model.predict(X)
+
+        self.eval_result_pred_ = self.evaluator(self.model, X, y, y_pred=y_pred)
+        return y_pred
+
+    def transform_eval(self, X, y=None):
+        check_is_fitted(self)
+
+        Xt = self.model.transform(X)
+
+        self.eval_result_pred_ = self.evaluator(self.model, X, y)
+
+        return Xt
+
+
+class SupervisedEmbeddingRegressor(BaseEstimator, RegressorMixin):
+    # TODO: how shaky is this?
+
+    def __init__(self, encoder, regressor):
+        self.encoder = encoder
+        self.regressor = regressor
+
+        self.encoder_ = None
+        self.regressor_ = None
+
+    def fit(self, X, y):
+        self.encoder_ = clone(self.encoder)
+        self.regressor_ = clone(self.regressor)
+
+        self.encoder_.fit(y, X)
+
+        z = self.encoder_.transform(y)
+        self.regressor_.fit(X, z)
+        return self
+
+    def predict(self, X):
+        check_is_fitted(self)
+
+        z_pred = self.regressor_.predict(X)
+        return self.encoder_.inverse_transform(z_pred)
+
+    def predict_eval(self, X, y):
+        check_is_fitted(self)
+
+        if hasattr(self.encoder_, "transform_eval"):
+            yt = self.encoder_.transform_eval(y)
+        else:
+            yt = self.encoder_.transform(y)
+
+        if hasattr(self.regressor_, "predict_eval"):
+            z_pred = self.regressor_.predict_eval(X, yt)
+        else:
+            z_pred = self.regressor_.predict(X)
+
+        return self.encoder_.inverse_transform(z_pred)
 
 
 class PValuesAdjuster:
@@ -147,59 +378,6 @@ class R2Score(RegressionMetricAdapter):
         super().__init__(
             "r2", r2_score, multioutput=multioutput, prefix=prefix, extender=extender
         )
-
-
-class MeshR2Score(ModelEvaluator):
-    def __init__(self, as_dict=True, prefix="", extender=None):
-        super().__init__(prefix, extender=extender)
-        self.as_dict = as_dict
-
-    def __call__(self, model, X, y, y_pred=None):
-        if y_pred is None:
-            y_pred = model.predict(X)
-
-        meshes2vertices = Map(ToVertices()) + np.stack + FlattenButFirst()
-
-        vertices = meshes2vertices(y)
-        vertices_pred = meshes2vertices(y_pred)
-
-        featurewise_r2 = r2_score(vertices, vertices_pred, multioutput="raw_values")
-
-        if self.as_dict:
-            return self._update_results({"featurewise_r2": featurewise_r2})
-
-        return featurewise_r2
-
-
-class MeshEuclideanR2Score(ModelEvaluator):
-    def __init__(self, as_dict=True, prefix="", extender=None):
-        super().__init__(prefix, extender=extender)
-        self.as_dict = as_dict
-
-    def __call__(self, model, X, y, y_pred=None):
-        if y_pred is None:
-            y_pred = model.predict(X)
-
-        meshes2vertices = Map(ToVertices()) + np.stack
-
-        vertices = meshes2vertices(y)
-        vertices_pred = meshes2vertices(y_pred)
-
-        vertices_mean = np.mean(vertices, axis=0)
-
-        ss_res = np.sum(
-            np.linalg.norm((vertices - vertices_pred), axis=-1) ** 2, axis=0
-        )
-        ss_tot = np.sum(
-            np.linalg.norm((vertices - vertices_mean) ** 2, axis=-1), axis=0
-        )
-
-        vertexwise_r2 = 1 - ss_res / ss_tot
-
-        if self.as_dict:
-            return self._update_results({"vertexwise_r2": vertexwise_r2})
-
-        return vertexwise_r2
 
 
 class PcaEvaluator(ModelEvaluator):
