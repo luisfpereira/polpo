@@ -2,6 +2,7 @@ import logging
 import platform
 import traceback
 from abc import ABC
+from functools import partial
 from pathlib import Path
 
 from polpo.io.json import dump_json, load_json
@@ -27,6 +28,32 @@ def task(func):
     """
     func._is_task = True
     return func
+
+
+def task_family(source):
+    """Mark a method as defining a family of dynamically generated tasks.
+
+    One task is created for each item in the mapping stored in the attribute
+    named by ``source``. The mapping key becomes the task name, and the key and
+    value are passed as arguments to the decorated method.
+
+    Parameters
+    ----------
+    source : str
+        Name of the instance attribute containing the mapping used to generate
+        the tasks.
+
+    Returns
+    -------
+    decorator : callable
+        Decorator marking a method as a task family.
+    """
+
+    def decorator(fn):
+        fn._task_family_source = source
+        return fn
+
+    return decorator
 
 
 class TaskRunner(ABC):
@@ -103,6 +130,16 @@ class TaskRunner(ABC):
             for name, attr in cls.__dict__.items():
                 if getattr(attr, "_is_task", False):
                     tasks[name] = getattr(self, name)
+
+                collection_name = getattr(attr, "_task_family_source", None)
+                if collection_name is not None:
+                    collection = getattr(self, collection_name)
+
+                    for key, value in collection.items():
+                        if key in tasks:
+                            raise ValueError(f"Duplicate task name: {key!r}")
+
+                        tasks[key] = partial(getattr(self, name), key, value)
 
         return tasks
 
