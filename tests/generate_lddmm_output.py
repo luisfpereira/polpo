@@ -2,7 +2,7 @@ import string
 from pathlib import Path
 
 from polpo.dataset import NestedDataset, NestedKeyMap
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 from polpo.surface_mesh.generation.blob import create_blob
 from polpo.workflow.lddmm_to_global import LddmmToGlobal, LddmmToGlobalOutput
 

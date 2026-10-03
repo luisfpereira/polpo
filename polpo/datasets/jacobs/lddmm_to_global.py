@@ -1,7 +1,6 @@
 import logging
 
 from polpo.dataset import NestedKeyEncoder, NestedKeyMap
-from polpo.datasets.jacobs.mesh import load_dataset
 from polpo.neuroimaging.naming import (
     get_all_subcortical_structs,
     get_subcortical_struct_long_name,
@@ -86,6 +85,8 @@ def prepare_inputs(
         Metadata describing the prepared inputs, including the original-to-
         encoded key mapping.
     """
+    from polpo.datasets.jacobs.mesh import load_dataset
+
     metadata = dict(
         struct=struct,
         subject_ids=subject_ids,

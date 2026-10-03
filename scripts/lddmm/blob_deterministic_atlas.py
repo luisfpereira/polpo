@@ -2,7 +2,7 @@ import shutil
 import string
 
 import polpo.utils as putils
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 from polpo.surface_mesh.deformetrica import FrechetMean, LddmmMetric, Point
 from polpo.surface_mesh.generation.blob import create_blob
 from polpo.surface_mesh.registration import SurfaceRigidRegistration

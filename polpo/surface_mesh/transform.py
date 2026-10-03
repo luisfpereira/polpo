@@ -1,7 +1,7 @@
 import geomstats.backend as gs
 from geomstats.metric_geometry.vectorization import _manipulate_output, vectorize_point
 
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 from polpo.transform import InvertibleTransform
 
 

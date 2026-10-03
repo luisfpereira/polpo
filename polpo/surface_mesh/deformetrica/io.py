@@ -1,6 +1,6 @@
 import pyvista as pv
 
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 
 
 def write_vtk_polydata(path, surface):

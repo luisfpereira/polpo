@@ -1,6 +1,6 @@
 from polpo.neuroimaging.dataset import group_by_structure
 from polpo.neuroimaging.mesh import read_geometry, select_mesh_paths
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 
 from .defaults import DATA_DIR
 from .path import select_folders

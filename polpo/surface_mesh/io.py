@@ -2,7 +2,7 @@
 
 import meshio
 
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 
 
 def _to_native(array):

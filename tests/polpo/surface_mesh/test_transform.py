@@ -1,7 +1,7 @@
 import geomstats.backend as gs
 import numpy as np
 
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 from polpo.surface_mesh.transform import DeltaTransform
 from polpo.testing.data import CaseData
 from polpo.testing.parametrizers import DataBasedParametrizer

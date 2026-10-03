@@ -1,9 +1,7 @@
 import geomstats.backend as gs
 from geomstats.geometry.discrete_surfaces import (
     DiscreteSurfaces,
-)
-from geomstats.geometry.discrete_surfaces import (
-    L2SurfacesMetric as GsL2SurfacesMetric,
+    L2SurfacesMetric,
 )
 
 from polpo.surface_mesh.geometry import PullbackMetric, SurfacesSpace
@@ -23,7 +21,7 @@ def EuclideanSurfaces(faces):
     )
 
 
-class L2SurfacesMetric(GsL2SurfacesMetric):
+class L2SurfacesMetric(_L2SurfacesMetric):
     # TODO: implement in geomstats
 
     def parallel_transport(

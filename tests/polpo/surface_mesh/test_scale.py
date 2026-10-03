@@ -3,7 +3,7 @@
 import geomstats.backend as gs
 import numpy as np
 
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 from polpo.surface_mesh.generation.polyhedra import create_regular_tetrahedron
 from polpo.surface_mesh.scale import (
     median_edge_length,

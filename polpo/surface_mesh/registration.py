@@ -2,7 +2,7 @@
 
 from polpo.registration.base import BaseRegistration
 from polpo.registration.rigid import RigidRegistration
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 
 
 class BaseSurfaceRegistration(BaseRegistration):

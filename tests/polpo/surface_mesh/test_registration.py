@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from polpo.surface_mesh.core import Surface
+from polpo.surface_mesh import Surface
 from polpo.surface_mesh.generation.blob import create_blob
 from polpo.surface_mesh.registration import SurfaceRigidRegistration
 from polpo.testing.data import LazyCaseData
