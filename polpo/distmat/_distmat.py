@@ -436,3 +436,24 @@ class PairDistances(BasePairDistances):
             Pairwise distance.
         """
         return self.data[self._pair_to_index[label_a, label_b]]
+
+    def select(self, labels):
+        """Select distances involving only the given labels.
+
+        Parameters
+        ----------
+        labels : collection
+            Labels to retain.
+
+        Returns
+        -------
+        distances : PairDistances
+            Distances whose pair labels are both selected.
+        """
+        labels = set(labels)
+        mask = np.asarray([a in labels and b in labels for a, b in self.pairs])
+
+        return self.__class__(
+            pairs=[pair for pair, keep in zip(self.pairs, mask) if keep],
+            data=self.data[mask],
+        )
