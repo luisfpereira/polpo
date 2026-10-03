@@ -1,7 +1,9 @@
 import geomstats.backend as gs
 from geomstats.geometry.discrete_surfaces import (
     DiscreteSurfaces,
-    L2SurfacesMetric,
+)
+from geomstats.geometry.discrete_surfaces import (
+    L2SurfacesMetric as _L2SurfacesMetric,
 )
 
 from polpo.surface_mesh.geometry import PullbackMetric, SurfacesSpace
