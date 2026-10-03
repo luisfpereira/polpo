@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.lines import Line2D
 
 from .base import Plotter
 
@@ -216,6 +217,47 @@ def plot_grid(
     return fig, axes
 
 
+def _legend_handle(name, kwargs):
+    return Line2D(
+        [],
+        [],
+        linestyle="none",
+        marker=kwargs.get("marker", "o"),
+        markerfacecolor=kwargs.get(
+            "facecolors",
+            kwargs.get("color", "none"),
+        ),
+        markeredgecolor=kwargs.get("color"),
+        label=name,
+    )
+
+
+def plot_layers(
+    data,
+    plot_fnc,
+    ax=None,
+    layer_kwargs=None,
+    legend=True,
+    **kwargs,
+):
+    if ax is None:
+        _, ax = plt.subplots()
+
+    layer_kwargs = {} if layer_kwargs is None else layer_kwargs
+
+    for name, item in data.items():
+        kwargs_ = kwargs | layer_kwargs.get(name, {})
+        plot_fnc(item, ax=ax, **kwargs_)
+
+    if legend:
+        handles = [
+            _legend_handle(name, kwargs) for name, kwargs in layer_kwargs.items()
+        ]
+        ax.legend(handles=handles)
+
+    return ax
+
+
 def _mean_and_error(values, error, axis=0):
     mean = values.mean(axis=axis)
     std = values.std(axis=axis, ddof=1)
@@ -276,6 +318,7 @@ def plot_hists(
     density=True,
     histtype="bar",
     ylabel=None,
+    xlabel=None,
     **kwargs,
 ):
     if ax is None:
@@ -297,6 +340,7 @@ def plot_hists(
         )
 
     ax.set_ylabel(ylabel)
+    ax.set_xlabel(xlabel)
 
     ax.legend()
     return ax

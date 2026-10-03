@@ -10,6 +10,7 @@ def update_mpl_params(format="pdf"):
             "savefig.pad_inches": 0.0,
             "savefig.format": "pdf",
             "image.cmap": "bwr",
+            "pdf.fonttype": 42,
         }
     )
 

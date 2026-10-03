@@ -32,45 +32,47 @@ def _group_pairs(pairs, grouper):
     return groups
 
 
-def plot_distance_comparison(
-    x_dist,
-    y_dist,
+def plot_dist_comparison(
+    xdist,
+    ydist,
     group_by=None,
     colors=None,
-    x_label="Local distance",
-    y_label="Global distance",
+    xlabel="Local distance",
+    ylabel="Global distance",
     ax=None,
     identity_line=True,
+    rasterized=True,
 ):
     if ax is None:
         fig, ax = plt.subplots()
 
-    if x_dist.labels != y_dist.labels:
+    if xdist.labels != ydist.labels:
         raise ValueError("Not same key order!")
 
-    x = x_dist.data
-    y = y_dist.data
+    x = xdist.data
+    y = ydist.data
 
     if group_by is None or colors is None:
         ax.scatter(x, y)
     else:
-        groups = _group_pairs(x_dist.pairs, group_by)
+        groups = _group_pairs(xdist.pairs, group_by)
 
         for category, pairs in groups.items():
-            x_group = x_dist.select_pairs(pairs)
-            y_group = y_dist.select_pairs(pairs)
+            x_group = xdist.select_pairs(pairs)
+            y_group = ydist.select_pairs(pairs)
 
             ax.scatter(
                 x_group.data,
                 y_group.data,
                 color=colors[category],
                 label=category,
+                rasterized=rasterized,
             )
 
         ax.legend()
 
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
     if identity_line:
         lims = [
