@@ -105,7 +105,7 @@ class DistanceEvaluator:
 
     def local_reconstruction_error(self):
         """Compute distances between aligned shapes and local reconstructions."""
-        return self.source.mapped_view.local_registrations.map_values(
+        return self.source.local_registrations.map_values(
             lambda registration: self._dist(
                 registration.point,
                 registration.reconstructed,
@@ -114,7 +114,7 @@ class DistanceEvaluator:
 
     def local_atlas_fit_error(self):
         """Compute distances between atlas input shapes and their local-atlas reconstructions."""
-        errors = self.source.mapped_view.local_atlases.map_values(
+        errors = self.source.local_atlases.map_values(
             _atlas_reconstruction_error,
             dist_fnc=self._dist,
         )
@@ -134,7 +134,7 @@ class DistanceEvaluator:
 
         This reflects numerical error in establishing the local-to-global geodesic.
         """
-        return self.source.mapped_view.registrations_to_global_atlas.map_values(
+        return self.source.registrations_to_global_atlas.map_values(
             lambda registration: self._dist(
                 registration.point,
                 registration.reconstructed,
@@ -151,7 +151,7 @@ class DistanceEvaluator:
         outer key.
         """
         selected = {}
-        for outer_key, inner in self.source.mapped_view.transports.items():
+        for outer_key, inner in self.source.transports.items():
             try:
                 selected[outer_key] = next(
                     result for result in inner.values() if result.method == "fanning"
@@ -174,23 +174,21 @@ class DistanceEvaluator:
 
     def local_pairwise(self):
         """Compute pairwise distances between rigidly aligned input shapes."""
-        return self._pairwise(self.source.mapped_view.dataset.flatten())
+        return self._pairwise(self.source.dataset.flatten())
 
     def local_reconstructed_pairwise(self):
         """Compute pairwise distances between shapes reconstructed from local registrations."""
-        return self._pairwise(
-            self.source.mapped_view.local_reconstructed_points.flatten()
-        )
+        return self._pairwise(self.source.local_reconstructed_points.flatten())
 
     def global_pairwise(self):
         """Compute pairwise distances between shapes represented at the global atlas."""
-        return self._pairwise(self.source.mapped_view.global_points.flatten())
+        return self._pairwise(self.source.global_points.flatten())
 
     def local_atlas_distance(self):
         """Compute distances between local atlases and locally reconstructed shapes."""
-        local_atlases = self.source.mapped_view.local_atlases_points
+        local_atlases = self.source.local_atlases_points
 
-        return self.source.mapped_view.local_reconstructed_points.map_items(
+        return self.source.local_reconstructed_points.map_items(
             lambda outer_key, _, point: self._dist(
                 local_atlases[outer_key],
                 point,
@@ -199,7 +197,7 @@ class DistanceEvaluator:
 
     def global_atlas_distance(self):
         """Compute distances between the global atlas and globally represented shapes."""
-        return self.source.mapped_view.global_points.map_values(
+        return self.source.global_points.map_values(
             lambda point: self._dist(
                 self.source.global_atlas_point,
                 point,
@@ -261,7 +259,7 @@ class LddmmDistances(DistanceEvaluator):
 
     def local_atlas_fit_error(self):
         """Compute LDDMM distances from local atlases to their input shapes."""
-        errors = self.source.mapped_view.local_atlases.map_values(
+        errors = self.source.local_atlases.map_values(
             lambda atlas: {
                 point.id: self.metric.norm(tangent_vec)
                 for point, tangent_vec in zip(
@@ -288,13 +286,13 @@ class LddmmDistances(DistanceEvaluator):
 
     def local_atlas_distance(self):
         """Compute distances between local atlases and locally reconstructed shapes."""
-        return self.source.mapped_view.local_registrations.map_values(
+        return self.source.local_registrations.map_values(
             lambda registration: self.metric.norm(registration.tangent_vec),
         ).flatten()
 
     def global_atlas_distance(self):
         """Compute distances between the global atlas and globally represented shapes."""
-        return self.source.mapped_view.global_shoots.map_values(
+        return self.source.global_shoots.map_values(
             lambda shoot: self.metric.norm(shoot.tangent_vec),
         ).flatten()
 

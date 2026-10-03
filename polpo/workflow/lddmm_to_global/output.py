@@ -175,13 +175,14 @@ class LddmmToGlobalOutput:
         """Flows associated with the global atlas."""
         return Dataset(self.global_atlas.flows)
 
-    def instantiate_varifold_metric(self, engine="auto"):
+    def instantiate_varifold_metric(self, engine="auto", device="cpu"):
         """Instantiate the varifold metric used by the protocol."""
         from polpo.surface_mesh.varifold.geometry import VarifoldMetric
 
         return VarifoldMetric(
             sigma=self.results["kernel_tuning"]["attachment_kernel_width"],
             engine=engine,
+            device=device,
         )
 
     def instantiate_euclidean_metric(self):
