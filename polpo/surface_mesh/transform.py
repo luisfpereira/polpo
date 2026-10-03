@@ -1,18 +1,12 @@
 import geomstats.backend as gs
-from geomstats.metric_geometry.vectorization import (
-    _manipulate_output as gs_manipulate_output,
-)
-from geomstats.metric_geometry.vectorization import (
-    vectorize_point,
-)
+from geomstats.metric_geometry.vectorization import _manipulate_output, vectorize_point
 
-from polpo.ext.pyvista.surface_mesh import PvSurface
-from polpo.pipeline.mesh.conversion import PvFromData
+from polpo.surface_mesh.core import Surface
 from polpo.transform import InvertibleTransform
 
 
 def _output_as_array(out, to_list):
-    return gs_manipulate_output(out, to_list, manipulate_output_iterable=gs.array)
+    return _manipulate_output(out, to_list, manipulate_output_iterable=gs.array)
 
 
 @vectorize_point((0, "point"), manipulate_output=_output_as_array)
@@ -20,43 +14,12 @@ def mesh_to_vertices(point):
     return [point_.vertices for point_ in point]
 
 
-class VerticesToPvSurface:
-    def __init__(self, faces):
-        self.faces = faces
-        self._from_data = PvFromData() + PvSurface
-
-    def __call__(self, point):
-        if len(point.shape) == 2:
-            return self._from_data((point, self.faces))
-
-        return [self._from_data((point_, self.faces)) for point_ in point]
-
-
-class PvSurfaceToVertices:
-    def __init__(self, faces):
-        self._array_to_pv_surface = VerticesToPvSurface(faces)
-
-    def __call__(self, base_point):
-        return mesh_to_vertices(base_point)
-
-    def inverse(self, image_point):
-        return self._array_to_pv_surface(image_point)
-
-    def tangent(self, tangent_vec, base_point=None, image_point=None):
-        # TODO: need to check vectorization
-        return gs.asarray(tangent_vec)
-
-    def inverse_tangent(self, image_tangent_vec, image_point=None, base_point=None):
-        # TODO: need to check vectorization
-        return gs.asarray(image_tangent_vec)
-
-
 class DeltaTransform(InvertibleTransform):
     """Transform meshes to and from flattened template-relative deltas.
 
     Parameters
     ----------
-    template : PvSurface
+    template : Surface
         Reference mesh defining the common vertex topology and origin for the
         displacement representation.
 
@@ -82,7 +45,7 @@ class DeltaTransform(InvertibleTransform):
 
         Parameters
         ----------
-        meshes : PvSurface or array-like of PvSurface, shape [...]
+        meshes : Surface or array-like of Surface, shape [...]
             Mesh or collection of meshes sharing the template topology.
 
         Returns
@@ -113,7 +76,7 @@ class DeltaTransform(InvertibleTransform):
 
         Returns
         -------
-        meshes : PvSurface or ndarray of PvSurface, shape [...]
+        meshes : Surface or ndarray of Surface, shape [...]
             Reconstructed mesh or collection of meshes with the template
             topology.
         """
@@ -128,9 +91,9 @@ class DeltaTransform(InvertibleTransform):
         meshes = gs.empty(len(deltas), dtype=object)
 
         for i, delta in enumerate(deltas):
-            pv_mesh = self.template.as_pv().copy(deep=True)
-            pv_mesh.points = gs.to_numpy(self.template.vertices + delta)
-            meshes[i] = PvSurface(pv_mesh)
+            meshes[i] = Surface(
+                gs.to_numpy(self.template.vertices + delta), self.template.faces
+            )
 
         if single:
             return meshes[0]

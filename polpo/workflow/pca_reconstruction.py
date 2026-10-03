@@ -2,13 +2,11 @@ from functools import partial
 
 import numpy as np
 
-from polpo.numpy.io import save_indexed_array
-from polpo.sklearn.decomposition import PCA, TruncatedPCA
-from polpo.sklearn.io import load_estimator, save_estimator
+from polpo.ext.numpy.io import save_indexed_array
+from polpo.ext.sklearn.decomposition import PCA, TruncatedPCA
+from polpo.ext.sklearn.io import load_estimator, save_estimator
 from polpo.transform import CompositeTransform
 from polpo.workflow.task import TaskRunner, task
-
-# TODO: move?
 
 
 class PCAReconstructionEvaluator(TaskRunner):
@@ -16,10 +14,10 @@ class PCAReconstructionEvaluator(TaskRunner):
 
     Fits PCA to a vector representation of a collection of meshes, reconstructs
     the meshes using different numbers of principal components, and evaluates
-    the reconstructions with one or more mesh metrics.
+    the reconstructions with one or more metric callables.
 
-    Each metric is exposed as an independent task and its squared reconstruction
-    distances are persisted separately.
+    Each metric is exposed as an independent task and its reconstruction
+    dissimilarities are persisted separately.
 
     Parameters
     ----------
@@ -30,14 +28,15 @@ class PCAReconstructionEvaluator(TaskRunner):
         Transform mapping meshes to the vector representation on which PCA is
         fitted.
     metrics : dict
-        Mapping from task names to metrics exposing ``squared_dist``.
+        Mapping from task names to callables measuring dissimilarity between
+        two meshes.
     ks : array-like
         Numbers of principal components used for reconstruction.
     results_dir : path-like
         Directory where fitted estimators and evaluation results are stored.
-    state_dir : path-like, optional
-        Directory where task execution state is stored. Defaults to
-        ``results_dir``.
+    state_dir : path-like
+        Directory where task execution state is stored. If ``None``,
+        ``results_dir`` is used.
     """
 
     def __init__(
@@ -95,20 +94,21 @@ class PCAReconstructionEvaluator(TaskRunner):
         save_estimator(self.pca_path, pca)
 
     def _run_metric(self, name, metric):
-        """Evaluate and persist reconstruction distances for one metric.
+        """Evaluate and persist reconstruction dissimilarities for one metric.
 
         Parameters
         ----------
         name : str
             Name used to identify the metric task and its persisted results.
-        metric : object
-            Metric exposing ``squared_dist`` between two meshes.
+        metric : callable
+            Function measuring dissimilarity between an original and a
+            reconstructed mesh.
         """
         pca = load_estimator(self.pca_path)
 
         meshes = self.dataset.values_list()
 
-        squared_distances = []
+        dissimilarities = []
 
         for k in self.ks:
             pca_k = TruncatedPCA.from_fitted(pca, n_components=k)
@@ -117,9 +117,9 @@ class PCAReconstructionEvaluator(TaskRunner):
 
             rec_meshes = transform.inverse(transform(meshes))
 
-            squared_distances.append(
+            dissimilarities.append(
                 [
-                    metric.squared_dist(mesh, rec_mesh)
+                    metric(mesh, rec_mesh)
                     for mesh, rec_mesh in zip(
                         meshes,
                         rec_meshes,
@@ -128,10 +128,10 @@ class PCAReconstructionEvaluator(TaskRunner):
             )
 
         # (n_meshes, n_ks), so keys index axis 0
-        squared_distances = np.asarray(squared_distances).T
+        dissimilarities = np.asarray(dissimilarities).T
 
         save_indexed_array(
             self.results_dir / f"{name}.npz",
             keys=self.dataset.keys_list(),
-            data=squared_distances,
+            data=dissimilarities,
         )
