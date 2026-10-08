@@ -429,7 +429,7 @@ class NestedDataset(DatasetMapping):
 
     def split_outer(self):
         """Split into one Dataset per outer key."""
-        return {outer_key: self.get_outer(outer_key) for outer_key in self}
+        return Dataset({outer_key: self.get_outer(outer_key) for outer_key in self})
 
     def iter_outer(self):
         for outer_key in self:

@@ -227,7 +227,7 @@ def plot_grid(
     return fig, axes
 
 
-def _legend_handle(name, kwargs):
+def make_legend_handle(name, kwargs):
     return Line2D(
         [],
         [],
@@ -260,9 +260,15 @@ def plot_layers(
         plot_fnc(item, ax=ax, **kwargs_)
 
     if legend:
+        existing = ax.get_legend()
+
         handles = [
-            _legend_handle(name, kwargs) for name, kwargs in layer_kwargs.items()
+            make_legend_handle(name, kwargs_) for name, kwargs_ in layer_kwargs.items()
         ]
+
+        if existing is not None:
+            handles = list(existing.legend_handles) + handles
+
         ax.legend(handles=handles)
 
     return ax
