@@ -4,7 +4,7 @@ from polpo.dataset import Dataset
 from polpo.ext.numpy.io import load_indexed_array, save_indexed_array
 from polpo.utils.np import triu_vec_to_sym
 
-from .plot import plot_dist_mat
+from .plot import plot_distmat
 
 
 def permute_by_row_norm(mat, descending=True):
@@ -307,14 +307,14 @@ class PairwiseDistances(BasePairDistances):
         Parameters
         ----------
         **kwargs
-            Arguments passed to ``plot_dist_mat``.
+            Arguments passed to ``plot_distmat``.
 
         Returns
         -------
         ax : matplotlib.axes.Axes
             Plot axes.
         """
-        return plot_dist_mat(self, **kwargs)
+        return plot_distmat(self, **kwargs)
 
     def select(self, labels):
         """Select an induced subset of labels.

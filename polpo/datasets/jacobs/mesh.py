@@ -12,7 +12,7 @@ def load_dataset(
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
-    as_surface=None,
+    as_surface=False,
 ):
     """Load derivative meshes grouped by structure.
 

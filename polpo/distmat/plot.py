@@ -1,23 +1,26 @@
 from matplotlib import pyplot as plt
 
 
-def plot_dist_mat(dists, title=None, fig_size=None):
-    # TODO: add as_method to PairwiseDists
-    fig, ax = plt.subplots(figsize=fig_size)
+def plot_distmat(dists, ax=None, title=None, show_ticks=True, **kwargs):
+    if ax is None:
+        _, ax = plt.subplots()
 
-    im = ax.imshow(dists.matrix)
-
-    plt.colorbar(im)
+    ax.imshow(dists.matrix, **kwargs)
 
     if title is not None:
         ax.set_title(title)
 
-    keys = dists.labels
-    ax.set_xticks(range(len(keys)))
-    ax.set_xticklabels(keys, rotation=90)
+    if not show_ticks:
+        ax.set_xticks([])
+        ax.set_yticks([])
 
-    ax.set_yticks(range(len(keys)))
-    ax.set_yticklabels(keys)
+        return ax
+
+    labels = dists.labels
+    ticks = range(len(labels))
+
+    ax.set_xticks(ticks, labels=labels, rotation=90)
+    ax.set_yticks(ticks, labels=labels)
 
     return ax
 
