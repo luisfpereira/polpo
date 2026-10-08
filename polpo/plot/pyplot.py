@@ -142,7 +142,12 @@ def plot_grid(
     if select is None:
         select = lambda label, item: (item,)
 
-    n_rows = math.ceil(len(data) / n_cols)
+    n_items = len(data)
+    n_cols = min(n_cols, n_items)
+    n_rows = math.ceil(n_items / n_cols)
+
+    if figsize is None:
+        figsize = (4.5 * n_cols, 3.5 * n_rows)
 
     fig, axes = plt.subplots(
         n_rows,
@@ -153,32 +158,38 @@ def plot_grid(
         figsize=figsize,
         layout="constrained",
     )
+    fig.get_layout_engine().set(
+        h_pad=0.12,
+    )
 
-    for index, (ax, (label, item)) in enumerate(zip(axes.flat, data.items())):
+    data_axes = list(axes.flat)[:n_items]
+
+    for index, (ax, (label, item)) in enumerate(zip(data_axes, data.items())):
         plot(*select(label, item), ax=ax, **kwargs)
-        ax.set_title(label)
+
+        ax.set_title(label, fontsize=11, pad=10)
 
         row, col = divmod(index, n_cols)
 
         if col != 0:
-            ax.tick_params(labelleft=not sharey)
             ax.set_ylabel("")
+            ax.tick_params(labelleft=not sharey)
 
         if row != n_rows - 1:
-            ax.tick_params(labelbottom=not sharex)
             ax.set_xlabel("")
+            ax.tick_params(labelbottom=not sharex)
 
-    for ax in list(axes.flat)[len(data) :]:
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    # hide unused subplots in the last row
+    for ax in list(axes.flat)[n_items:]:
         ax.set_visible(False)
 
     if not share_legend:
         return fig, axes
 
-    legends = [
-        ax.get_legend()
-        for ax in list(axes.flat)[: len(data)]
-        if ax.get_legend() is not None
-    ]
+    legends = [ax.get_legend() for ax in data_axes if ax.get_legend() is not None]
 
     if not legends:
         return fig, axes
@@ -196,19 +207,18 @@ def plot_grid(
         fig.legend(
             handles,
             labels,
-            loc="lower center",
+            loc="outside lower center",
             ncol=ncol,
+            frameon=False,
         )
-        fig.tight_layout(rect=(0, 0.08, 1, 1))
 
     elif legend_position == "right":
-        fig.tight_layout(rect=(0, 0, 0.82, 1))
         fig.legend(
             handles,
             labels,
-            loc="center left",
-            bbox_to_anchor=(0.83, 0.5),
+            loc="outside right center",
             ncol=legend_wrap,
+            frameon=False,
         )
 
     else:

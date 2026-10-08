@@ -7,7 +7,7 @@ def update_mpl_params(format="pdf"):
     mpl.rcParams.update(
         {
             "savefig.bbox": "tight",
-            "savefig.pad_inches": 0.0,
+            "savefig.pad_inches": 0.15,
             "savefig.format": "pdf",
             "image.cmap": "bwr",
             "pdf.fonttype": 42,
