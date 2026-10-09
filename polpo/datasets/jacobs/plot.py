@@ -2,6 +2,8 @@ import matplotlib as mpl
 from matplotlib import colors as mcolors
 from matplotlib import pyplot as plt
 
+from .utils import get_subject_ids
+
 
 def update_mpl_params(format="pdf"):
     mpl.rcParams.update(
@@ -15,7 +17,10 @@ def update_mpl_params(format="pdf"):
     )
 
 
-def get_subject_colors(subj_ids):
+def get_subject_colors(subj_ids=None):
+    if subj_ids is None:
+        subj_ids = get_subject_ids(include_male=False, sort=True)
+
     color_ids = [
         subj_id for subj_id in subj_ids if not str(subj_id).startswith(("3", "4"))
     ]
