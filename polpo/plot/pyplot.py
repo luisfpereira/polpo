@@ -373,3 +373,44 @@ def add_hline(ax, y=0.0, linewidth=0.8, linestyle="--", color="gray", **kwargs):
         )
 
     return ax
+
+
+def plot_subfigure_grid(
+    data,
+    plot_func,
+    ncols=2,
+    panel_size=(6.5, 6.5),
+    **kwargs,
+):
+    """Plot a grid of subfigures.
+
+    Parameters
+    ----------
+    data : dict
+        Mapping from panel titles to data passed to `plot_func`.
+    plot_func : callable
+        Function accepting a subfigure, data, and a title.
+    ncols : int
+        Number of columns in the grid.
+    panel_size : tuple of float
+        Width and height of each panel in inches.
+    **kwargs
+        Additional keyword arguments passed to `plot_func`.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Figure containing the subfigure grid.
+    """
+    nrows = math.ceil(len(data) / ncols)
+
+    fig = plt.figure(
+        figsize=(panel_size[0] * ncols, panel_size[1] * nrows),
+        layout="constrained",
+    )
+    subfigs = fig.subfigures(nrows, ncols, squeeze=False).flat
+
+    for subfig, (name, value) in zip(subfigs, data.items()):
+        plot_func(subfig, value, title=name, **kwargs)
+
+    return fig
