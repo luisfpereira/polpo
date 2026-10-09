@@ -1,54 +1,65 @@
 import nibabel as nib
+import numpy as np
 
-from polpo.pipeline.base import PreprocessingStep
 
-
-class MriImageLoader(PreprocessingStep):
-    """Load image from .nii/.mgz file.
+def load_image(filename, as_nib=False, return_affine=False):
+    """Load a volumetric neuroimaging image using NiBabel.
 
     Parameters
     ----------
-    filename : str
-        File to load.
+    filename : path-like
+        Path to the image file.
     as_nib : bool
-        Whether to return the nibabel object.
+        Whether to return the NiBabel image object instead of its data.
     return_affine : bool
-        Whether to return the affine transformation.
-        Ignore if `as_nib` is True.
+        Whether to return the affine transformation alongside the image data.
+        Ignored if `as_nib` is True.
+
+    Returns
+    -------
+    img : nibabel.spatialimages.SpatialImage
+        Loaded image if `as_nib` is True.
+    data : ndarray
+        Image data if `as_nib` is False.
+    affine : ndarray, shape=[4, 4]
+        Affine transformation, returned alongside `data` if
+        `return_affine` is True and `as_nib` is False.
     """
+    img = nib.load(filename)
 
-    def __init__(self, filename=None, as_nib=False, return_affine=False):
-        super().__init__()
-        self.filename = filename
-        self.as_nib = as_nib
-        self.return_affine = return_affine
+    if as_nib:
+        return img
 
-    def __call__(self, filename=None):
-        """Apply step.
+    data = img.get_fdata()
+    return (data, img.affine) if return_affine else data
 
-        Parameters
-        ----------
-        filename : str
-            File to load.
 
-        Returns
-        -------
-        img : nibabel.nifti1.Nifti1Image
-            If `as_nib` is True.
-        img_data : np.array
-            If `as_nib` is False.
-        affine : nibabel.nifti1.Nifti1Image
-            If `as_nib` is False and `affine` is True.
-        """
-        filename = filename or self.filename
+def compute_label_volumes(path, labels, encoding=None):
+    """Compute label volumes from a segmentation image.
 
-        img = nib.load(filename)
-        if self.as_nib:
-            return img
+    Parameters
+    ----------
+    path : path-like
+        Path to the segmentation image.
+    labels : iterable
+        Labels identifying the structures.
+    encoding : callable or None
+        Function mapping labels to image values.
 
-        # this is the costly step
-        img_data = img.get_fdata()
-        if not self.return_affine:
-            return img_data
+    Returns
+    -------
+    volumes : dict
+        Mapping from labels to volumes in cubic millimeters.
+    """
+    if encoding is None:
+        encoding = lambda x: x
 
-        return img_data, img.affine
+    img = nib.load(path)
+    data = np.asanyarray(img.dataobj)
+
+    voxel_volume = abs(np.linalg.det(img.affine[:3, :3]))
+
+    return {
+        label: np.count_nonzero(data == encoding(label)) * voxel_volume
+        for label in labels
+    }
