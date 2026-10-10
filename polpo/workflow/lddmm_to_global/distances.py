@@ -3,10 +3,10 @@ from pathlib import Path
 
 from polpo.dataset import Dataset
 from polpo.distmat import PairwiseDistances
+from polpo.distmat.pairwise import pairwise_dists
 from polpo.ext.numpy.io import load_dict, save_dict_as_array
 from polpo.io.json import load_json
 from polpo.utils.dict_ import merge_dicts
-from polpo.utils.np import pairwise_dists
 from polpo.workflow.task import TaskRunner
 
 from .output import LddmmToGlobalOutput

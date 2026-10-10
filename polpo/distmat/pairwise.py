@@ -1,125 +1,56 @@
 import numpy as np
 
-from polpo.dataset import Dataset
 from polpo.ext.numpy.io import load_indexed_array, save_indexed_array
-from polpo.utils.np import triu_vec_to_sym
+from polpo.linalg import permute_by_row_norm, sym_to_triu_vec, triu_vec_to_sym
 
+from .pairs import BasePairDistances, PairDistances
 from .plot import plot_distmat
 
 
-def permute_by_row_norm(mat, descending=True):
-    """Permute both matrix axes according to row norm.
+def pairwise_dists(points, dist_fnc, as_matrix=True, n_jobs=1):
+    """Compute pairwise distances between points.
 
     Parameters
     ----------
-    mat : array-like, shape=(n, n)
-        Square matrix.
-    descending : bool
-        Whether to order by decreasing row norm.
+    points : sequence
+        Points to compare.
+    dist_fnc : callable
+        Function taking two points and returning their distance.
+    as_matrix : bool
+        Whether to return a symmetric distance matrix or a condensed
+        vector containing the upper triangle, excluding the diagonal.
+    n_jobs : int
+        Number of parallel workers. Use 1 for sequential execution
+        and -1 to use all available workers.
 
     Returns
     -------
-    permuted_mat : array-like, shape=(n, n)
-        Matrix with rows and columns permuted.
-    indices : array-like, shape=(n,)
-        Indices defining the permutation.
+    dists : ndarray, shape (n, n) or (n * (n - 1) // 2,)
+        Pairwise distances, where n is the number of points.
+        The diagonal is zero when returned as a matrix.
     """
-    # checks for global isolation
-    row_norms = np.linalg.norm(mat, axis=-1)
+    if n_jobs == 1:
+        dists = [
+            dist_fnc(point, cmp_point)
+            for index, point in enumerate(points)
+            for cmp_point in points[index + 1 :]
+        ]
+    else:
+        dists = _pairwise_dists_par(points, dist_fnc, n_jobs)
 
-    signal = -1.0 if descending else 1.0
-    sorted_idx = np.argsort(signal * row_norms, axis=-1)
-
-    perm_mat = mat[np.ix_(sorted_idx, sorted_idx)]
-
-    return perm_mat, sorted_idx
-
-
-def knn_scores(mat, k=5):
-    """Compute mean distances to nearest neighbors.
-
-    Parameters
-    ----------
-    mat : array-like, shape=(n, n)
-        Pairwise distance matrix.
-    k : int
-        Number of nearest neighbors.
-
-    Returns
-    -------
-    scores : array-like, shape=(n,)
-        Mean nearest-neighbor distance for each sample.
-    """
-    # mat: (n, n) distance matrix
-    idx = np.argsort(mat, axis=1)
-    knn = np.take_along_axis(mat, idx[:, 1 : k + 1], axis=1)
-    return knn.mean(axis=1)
+    dists = np.array(dists)
+    return triu_vec_to_sym(dists) if as_matrix else dists
 
 
-class BasePairDistances:
-    """Collection of scalar distances indexed by label pairs."""
+def _pairwise_dists_par(points, dist_fnc, n_jobs=None):
+    """Compute condensed pairwise distances using parallel workers."""
+    from joblib import Parallel, delayed
 
-    def get(self, label_a, label_b):
-        raise NotImplementedError
+    row_ind, col_ind = np.triu_indices(len(points), k=1)
 
-    def items(self):
-        """Iterate over pairs and distances.
-
-        Returns
-        -------
-        items : iterator
-            Pairs and corresponding distances.
-        """
-        return zip(self.pairs, self.data)
-
-    def as_dataset(self):
-        """Return distances as a pair-keyed dataset.
-
-        Returns
-        -------
-        dataset : Dataset
-            Dataset mapping label pairs to distances.
-        """
-        return Dataset(dict(self.items()))
-
-    def select_pairs(self, pairs):
-        """Select distances for arbitrary pairs.
-
-        Parameters
-        ----------
-        pairs : sequence, shape=(n_pairs, 2)
-            Pairs to select.
-
-        Returns
-        -------
-        distances : PairDistances
-            Distances associated with the selected pairs.
-        """
-        return PairDistances(
-            pairs=pairs,
-            data=np.asarray([self.get(*pair) for pair in pairs]),
-        )
-
-    def group_pairs(self, grouper):
-        """Group pairwise distances according to their label pairs.
-
-        Parameters
-        ----------
-        grouper : callable
-            Function mapping two labels to a group key.
-
-        Returns
-        -------
-        groups : dict
-            Mapping group keys to ``PairDistances``.
-        """
-        groups = {}
-
-        for pair in self.pairs:
-            group = grouper(*pair)
-            groups.setdefault(group, []).append(pair)
-
-        return {group: self.select_pairs(pairs) for group, pairs in groups.items()}
+    return Parallel(n_jobs=n_jobs, prefer="threads")(
+        delayed(dist_fnc)(points[i], points[j]) for i, j in zip(row_ind, col_ind)
+    )
 
 
 class PairwiseDistances(BasePairDistances):
@@ -174,8 +105,7 @@ class PairwiseDistances(BasePairDistances):
         distances : PairwiseDistances
             Pairwise distances in condensed form.
         """
-        indices = np.triu_indices(len(labels), k=1)
-        return cls(labels, matrix[indices])
+        return cls(labels, sym_to_triu_vec(matrix))
 
     @property
     def pairs(self):
@@ -209,7 +139,7 @@ class PairwiseDistances(BasePairDistances):
 
     @staticmethod
     def _pair_index(i, j, n):
-        """Return the condensed index for a pair.
+        """Return the condensed index corresponding to a pair of distinct samples.
 
         Parameters
         ----------
@@ -222,12 +152,9 @@ class PairwiseDistances(BasePairDistances):
 
         Returns
         -------
-        index : int or None
-            Condensed index, or ``None`` for identical indices.
+        index : int
+            Position of the pair in the condensed upper triangle.
         """
-        if i == j:
-            return None
-
         if i > j:
             i, j = j, i
 
@@ -297,7 +224,7 @@ class PairwiseDistances(BasePairDistances):
         distances : PairwiseDistances
             Pairwise distances with reordered labels.
         """
-        perm_mat, sorted_idx = permute_by_row_norm(self.matrix)
+        perm_mat, sorted_idx = permute_by_row_norm(self.matrix, descending=descending)
         labels = [self.labels[index] for index in sorted_idx]
         return self.__class__.from_matrix(labels, perm_mat)
 
@@ -383,77 +310,4 @@ class PairwiseDistances(BasePairDistances):
         return PairDistances(
             pairs=[pair for dist in distances for pair in dist.pairs],
             data=np.concatenate([dist.data for dist in distances]),
-        )
-
-
-class PairDistances(BasePairDistances):
-    """Distances associated with arbitrary pairs.
-
-    Parameters
-    ----------
-    pairs : sequence, shape=(n_pairs, 2)
-        Pairs associated with distances.
-    data : array-like, shape=(n_pairs,)
-        Distance values.
-    """
-
-    def __init__(self, pairs, data):
-        if len(pairs) != len(data):
-            raise ValueError("pairs and data must have the same length.")
-
-        self.pairs = pairs
-        self.data = data
-
-        self._pair_to_index = {}
-        for index, (a, b) in enumerate(self.pairs):
-            self._pair_to_index[a, b] = index
-            self._pair_to_index[b, a] = index
-
-    @property
-    def labels(self):
-        """Return labels appearing in pairs.
-
-        Returns
-        -------
-        labels : list
-            Unique labels in order of appearance.
-        """
-        return list(dict.fromkeys(label for pair in self.pairs for label in pair))
-
-    def get(self, label_a, label_b):
-        """Return the distance between two labels.
-
-        Parameters
-        ----------
-        label_a
-            First sample label.
-        label_b
-            Second sample label.
-
-        Returns
-        -------
-        distance : float
-            Pairwise distance.
-        """
-        return self.data[self._pair_to_index[label_a, label_b]]
-
-    def select(self, labels):
-        """Select distances involving only the given labels.
-
-        Parameters
-        ----------
-        labels : collection
-            Labels to retain.
-
-        Returns
-        -------
-        distances : PairDistances
-            Distances whose pair labels are both selected.
-        """
-        labels = set(labels)
-        mask = np.asarray([a in labels and b in labels for a, b in self.pairs])
-
-        return self.__class__(
-            pairs=[pair for pair, keep in zip(self.pairs, mask) if keep],
-            data=self.data[mask],
         )

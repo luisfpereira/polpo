@@ -13,11 +13,6 @@ from .dict_ import *  # noqa: F403
 from .pd import *  # noqa: F403
 
 try:
-    from .np import *  # noqa: F403
-except ImportError:
-    pass
-
-try:
     from .url import *  # noqa: F403
 except ImportError:
     pass

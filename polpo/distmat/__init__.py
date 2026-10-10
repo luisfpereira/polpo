@@ -1,1 +1,2 @@
-from ._distmat import *
+from .pairs import PairDistances
+from .pairwise import PairwiseDistances
