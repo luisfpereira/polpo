@@ -3,15 +3,15 @@
 import numpy as np
 from sklearn.model_selection import LeaveOneGroupOut
 
-from polpo.io.json import dump_json, load_json
-from polpo.sklearn.model_selection import (
+from polpo.ext.sklearn.model_selection import (
     assemble_predictions,
     cross_fit,
     predict_folds,
 )
-from polpo.sklearn.truncation import truncate
+from polpo.ext.sklearn.truncation import truncate
+from polpo.io.json import dump_json, load_json
 
-# TODO: replace distance term
+# TODO: move to experiments?
 
 
 class TruncatedCVEvaluator:
@@ -80,14 +80,14 @@ class TruncatedCVEvaluator:
         if self.fit_diagnostics is not None:
             fit_diagnostics = self.fit_diagnostics(self.cross_fit_result_)
 
-        distances = self._evaluate(
+        metrics = self._evaluate(
             self.cross_fit_result_,
             X,
             y,
         )
 
         self.result_ = TruncatedCVEvaluationResult(
-            distances=distances,
+            metrics=metrics,
             keys=keys,
             truncations=self.truncations,
             held_out_groups=held_out_groups,
@@ -97,7 +97,7 @@ class TruncatedCVEvaluator:
         return self
 
     def _evaluate(self, cross_fit_result, X, y):
-        distances = {
+        metrics = {
             name: np.empty((len(y), len(self.truncations))) for name in self.metrics
         }
 
@@ -109,11 +109,11 @@ class TruncatedCVEvaluator:
             )
 
             for name, metric in self.metrics.items():
-                distances[name][:, truncation_idx] = [
+                metrics[name][:, truncation_idx] = [
                     metric(y_true, y_pred) for y_true, y_pred in zip(y, predictions)
                 ]
 
-        return distances
+        return metrics
 
     @staticmethod
     def _predict(cross_fit_result, X, truncation):
@@ -138,11 +138,11 @@ class TruncatedCVEvaluationResult:
 
     Parameters
     ----------
-    distances : dict
+    metrics : dict
         Mapping from metric names to arrays of shape
         ``(n_samples, n_truncations)``.
     keys : list
-        Keys identifying samples represented by rows of ``distances``.
+        Keys identifying samples represented by rows of ``metrics``.
     truncations : list
         Evaluated truncation levels.
     held_out_groups : list
@@ -153,13 +153,13 @@ class TruncatedCVEvaluationResult:
 
     def __init__(
         self,
-        distances,
+        metrics,
         keys,
         truncations,
         held_out_groups,
         fit_diagnostics=None,
     ):
-        self.distances = distances
+        self.metrics = metrics
         self.keys = list(keys)
         self.truncations = list(truncations)
         self.held_out_groups = list(held_out_groups)
@@ -170,8 +170,8 @@ class TruncatedCVEvaluationResult:
         results_dir.mkdir(parents=True, exist_ok=True)
 
         np.savez_compressed(
-            results_dir / "distances.npz",
-            **self.distances,
+            results_dir / "metrics.npz",
+            **self.metrics,
         )
 
         dump_json(
@@ -194,8 +194,8 @@ class TruncatedCVEvaluationResult:
     @classmethod
     def from_dir(cls, results_dir):
         """Load results from disk."""
-        with np.load(results_dir / "distances.npz") as data:
-            distances = {name: values.copy() for name, values in data.items()}
+        with np.load(results_dir / "metrics.npz") as data:
+            metrics = {name: values.copy() for name, values in data.items()}
 
         params = load_json(results_dir / "params.json")
 
@@ -205,7 +205,7 @@ class TruncatedCVEvaluationResult:
         )
 
         return cls(
-            distances=distances,
+            metrics=metrics,
             fit_diagnostics=fit_diagnostics,
             **params,
         )

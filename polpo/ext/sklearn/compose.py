@@ -1,6 +1,4 @@
 from sklearn.base import BaseEstimator, RegressorMixin, clone
-from sklearn.compose import TransformedTargetRegressor as SkTransformedTargetRegressor
-from sklearn.utils.validation import check_is_fitted
 
 
 class TransformedTargetRegressor(RegressorMixin, BaseEstimator):

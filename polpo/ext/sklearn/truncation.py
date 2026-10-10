@@ -14,9 +14,9 @@ from sklearn.decomposition import PCA
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline
 
-from polpo.sklearn.compose import TransformedTargetRegressor
-from polpo.sklearn.decomposition import TruncatedPCA
-from polpo.sklearn.multioutput import TruncatedMultiOutputRegressor
+from polpo.ext.sklearn.compose import TransformedTargetRegressor
+from polpo.ext.sklearn.decomposition import TruncatedPCA
+from polpo.ext.sklearn.multioutput import TruncatedMultiOutputRegressor
 
 
 @singledispatch
