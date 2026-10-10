@@ -5,8 +5,20 @@ from typing import List
 import nbformat
 import typer
 
-import polpo.nb.utils as pnbutils
-import polpo.utils as putils
+from polpo.nb.utils import (
+    add_metadata_values,
+    get_broken_nb_links,
+    get_broken_nb_local_links,
+    get_metadata_keys,
+    get_metadata_values,
+    get_nb_local_links,
+    get_run_stats,
+    metadata_key_contains_val,
+    remove_metadata_key,
+    remove_metadata_values,
+    rename_metadata_key,
+)
+from polpo.utils import expand_path_names
 
 app = typer.Typer()
 
@@ -58,7 +70,7 @@ def _expand_notebook_names(names):
     -----
     * shell resolves globs before they reach here
     """
-    paths = putils.expand_path_names(names)
+    paths = expand_path_names(names)
     return [path for path in paths if path.suffix == ".ipynb"]
 
 
@@ -134,7 +146,7 @@ def rm_md_key(
     notebooks = _load_notebooks(notebooks)
 
     for notebook in notebooks:
-        notebook.modified = pnbutils.remove_metadata_key(notebook.nb, key)
+        notebook.modified = remove_metadata_key(notebook.nb, key)
 
     _write_notebooks(notebooks)
 
@@ -151,7 +163,7 @@ def mv_md_key(
     notebooks = _load_notebooks(notebooks)
 
     for notebook in notebooks:
-        notebook.modified = pnbutils.rename_metadata_key(notebook.nb, old_key, new_key)
+        notebook.modified = rename_metadata_key(notebook.nb, old_key, new_key)
 
     _write_notebooks(notebooks)
 
@@ -165,7 +177,7 @@ def add_md_vals(
 ):
     _set_logger(logging_level)
 
-    _modify_with_vals(notebooks, vals, key, pnbutils.add_metadata_values)
+    _modify_with_vals(notebooks, vals, key, add_metadata_values)
 
 
 @app.command()
@@ -177,7 +189,7 @@ def rm_md_vals(
 ):
     _set_logger(logging_level)
 
-    _modify_with_vals(notebooks, vals, key, pnbutils.remove_metadata_values)
+    _modify_with_vals(notebooks, vals, key, remove_metadata_values)
 
 
 @app.command()
@@ -191,7 +203,7 @@ def get_md_vals(
 
     data = {}
     for notebook in notebooks:
-        key_vals = pnbutils.get_metadata_values(notebook.nb, key=key)
+        key_vals = get_metadata_values(notebook.nb, key=key)
         if key_vals is not None:
             data[notebook.path] = key_vals
 
@@ -210,7 +222,7 @@ def get_md_keys(
 
     data = {}
     for notebook in notebooks:
-        keys = pnbutils.get_metadata_keys(notebook.nb)
+        keys = get_metadata_keys(notebook.nb)
         filtered_keys = [key for key in keys if key not in exclude]
         if filtered_keys:
             data[notebook.path] = filtered_keys
@@ -228,7 +240,7 @@ def mdkey_contains_val(
     notebooks = _load_notebooks(notebooks)
 
     filtered = filter(
-        lambda notebook: pnbutils.metadata_key_contains_val(notebook.nb, val, key=key),
+        lambda notebook: metadata_key_contains_val(notebook.nb, val, key=key),
         notebooks,
     )
 
@@ -244,7 +256,7 @@ def has_mdkey(
     notebooks = _load_notebooks(notebooks)
 
     filtered = filter(
-        lambda notebook: key in pnbutils.get_metadata_keys(notebook.nb),
+        lambda notebook: key in get_metadata_keys(notebook.nb),
         notebooks,
     )
 
@@ -263,10 +275,10 @@ def get_nb_local_links(
     data = {}
 
     if broken:
-        data = pnbutils.get_broken_nb_local_links(_nbitem_ls_to_dict(notebooks))
+        data = get_broken_nb_local_links(_nbitem_ls_to_dict(notebooks))
     else:
         for notebook in notebooks:
-            links = pnbutils.get_nb_local_links(notebook.nb)
+            links = get_nb_local_links(notebook.nb)
             if links:
                 data[notebook.path] = links
 
@@ -282,7 +294,7 @@ def get_nb_links(
 ):
     notebooks = _load_notebooks(notebooks)
 
-    func = pnbutils.get_broken_nb_links if broken else pnbutils.get_nb_links
+    func = get_broken_nb_links if broken else get_nb_links
 
     data = {}
     for notebook in notebooks:
@@ -303,7 +315,7 @@ def get_run_status(
 
     data = {"norun": [], "partial": []}
     for notebook in notebooks:
-        null_cells, code_cells = pnbutils.get_run_stats(notebook.nb)
+        null_cells, code_cells = get_run_stats(notebook.nb)
 
         if null_cells == code_cells:
             data["norun"].append(notebook.path.as_posix())

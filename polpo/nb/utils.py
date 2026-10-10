@@ -1,6 +1,6 @@
 import re
 
-import polpo.utils as putils
+from polpo.nb.links import are_links_ok
 
 
 def remove_metadata_key(notebook, key):
@@ -133,7 +133,7 @@ def get_broken_nb_local_links(notebooks_dict):
 def get_broken_nb_links(notebook):
     urls = get_nb_links(notebook)
 
-    return [url for url, ok in zip(urls, putils.are_links_ok(urls)) if not ok]
+    return [url for url, ok in zip(urls, are_links_ok(urls)) if not ok]
 
 
 def get_run_stats(notebook):

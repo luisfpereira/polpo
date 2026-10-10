@@ -11,11 +11,6 @@ from pathlib import Path
 
 from .dict_ import *  # noqa: F403
 
-try:
-    from .url import *  # noqa: F403
-except ImportError:
-    pass
-
 
 def unnest_list(ls):
     return list(itertools.chain(*ls))
