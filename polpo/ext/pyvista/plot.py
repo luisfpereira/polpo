@@ -5,7 +5,14 @@ from pathlib import Path
 import numpy as np
 import pyvista as pv
 
-import polpo.utils as putils
+
+def _plot_index_to_shape(index, n_axis, rowise=False):
+    a, b = index // n_axis, index % n_axis
+
+    if rowise:
+        return b, a
+
+    return a, b
 
 
 class _PvPlotter(abc.ABC):
@@ -121,7 +128,7 @@ class RegisteredMeshesGifPlotter(_PvPlotter):
         for time_index, (time_id, meshes_) in enumerate(self._iter_meshes(meshes)):
             for subplot_index, (comp_id, mesh) in enumerate(self._iter_meshes(meshes_)):
                 pl.subplot(
-                    *putils.plot_index_to_shape(
+                    *_plot_index_to_shape(
                         subplot_index, pl.shape[subplot_axis], rowise=self.rowise
                     )
                 )

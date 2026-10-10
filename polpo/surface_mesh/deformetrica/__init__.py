@@ -1,4 +1,4 @@
-import polpo.utils as _putils
+from polpo.utils import has_package
 
 from .representations import (
     ControlPoints,
@@ -9,7 +9,7 @@ from .representations import (
     Velocity,
 )
 
-HAS_DEFORMETRICA = _putils.has_package("deformetrica")
+HAS_DEFORMETRICA = has_package("deformetrica")
 
 
 if HAS_DEFORMETRICA:

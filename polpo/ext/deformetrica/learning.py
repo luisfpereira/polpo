@@ -74,7 +74,7 @@ def estimate_deterministic_atlas(
         Path to the estimated atlas.
     """
     if source is None:
-        source = putils.get_first(targets)
+        source = next(iter(targets))
 
     template_specifications = config.build_template_specifications(source)
 

@@ -2,7 +2,7 @@ from collections.abc import Mapping
 
 import numpy as np
 
-from polpo.utils.dict_ import nest_dict, unnest_dict
+from polpo.utils import nest_dict, unnest_dict
 
 
 class DatasetMapping(Mapping):

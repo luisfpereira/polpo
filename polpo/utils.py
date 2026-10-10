@@ -1,5 +1,3 @@
-# NB: do not explictly import anything that depends on third part library
-import collections
 import getpass
 import glob
 import importlib
@@ -11,32 +9,19 @@ from pathlib import Path
 
 
 def unnest_list(ls):
+    """Flatten a sequence of iterables by one level.
+
+    Parameters
+    ----------
+    ls : iterable of iterables
+        Nested elements to flatten.
+
+    Returns
+    -------
+    flattened : list
+        Elements concatenated in their original order.
+    """
     return list(itertools.chain(*ls))
-
-
-def unnest(ls):
-    if not is_non_string_iterable(ls):
-        return [ls]
-
-    data = []
-    for datum_ in ls:
-        data.extend(unnest(datum_))
-
-    return data
-
-
-def is_non_string_iterable(obj):
-    return isinstance(obj, collections.abc.Iterable) and not isinstance(obj, str)
-
-
-def as_list(data):
-    if isinstance(data, list):
-        return data
-
-    if is_non_string_iterable(data):
-        return list(data)
-
-    return [data]
 
 
 def params_to_kwargs(obj, ignore=(), renamings=None, ignore_private=False, func=None):
@@ -82,45 +67,6 @@ def params_to_kwargs(obj, ignore=(), renamings=None, ignore_private=False, func=
     return kwargs
 
 
-def custom_order(reference):
-    # behavior is random if element is not in reference
-    order_ = {val: index for index, val in enumerate(reference)}
-    n_reference = len(order_)
-
-    def _custom_order(x):
-        return order_.get(x, n_reference)
-
-    return _custom_order
-
-
-def plot_shape_from_n_plots(n_plots, n_axis=2, axis=1):
-    # TODO: compute space filler?
-    n_axis_0 = min(n_axis, n_plots)
-    n_axis_1 = (n_plots + n_axis_0 - 1) // n_axis_0
-
-    if axis == 1:
-        return n_axis_1, n_axis_0
-
-    return n_axis_0, n_axis_1
-
-
-def plot_index_to_shape(index, n_axis, rowise=False):
-    # TODO: find better name
-    a, b = index // n_axis, index % n_axis
-
-    if rowise:
-        return b, a
-
-    return a, b
-
-
-def get_first(data):
-    if isinstance(data, dict):
-        return next(iter(data.values()))
-
-    return data[0]
-
-
 def in_frank():
     return socket.gethostname() == "frank"
 
@@ -130,6 +76,24 @@ def get_frank_user_scratch():
 
 
 def expand_path_names(names):
+    """Expand glob patterns into unique paths.
+
+    Parameters
+    ----------
+    names : iterable of str
+        File paths or glob patterns. Supports recursive patterns.
+
+    Returns
+    -------
+    paths : list of pathlib.Path
+        Expanded paths, preserving encounter order and removing
+        duplicates based on resolved paths.
+
+    Notes
+    -----
+    Literal paths are retained even if they do not exist.
+    Unmatched glob patterns contribute no paths.
+    """
     out = []
     for name in names:
         if any(ch in name for ch in "*?[]"):
@@ -148,10 +112,14 @@ def expand_path_names(names):
 
 
 def get_results_path():
-    if in_frank():
-        return get_frank_user_scratch()
+    """Return the default Polpo results directory.
 
-    return Path.home() / ".polpo/results"
+    Returns
+    -------
+    path : pathlib.Path
+        Results directory under the user's home directory.
+    """
+    return Path.home() / ".polpo" / "results"
 
 
 def has_package(package_name):
@@ -166,6 +134,20 @@ def has_package(package_name):
 
 
 def index_to_letters(index):
+    """Convert a zero-based index to an uppercase alphabetic label.
+
+    Labels follow spreadsheet-style ordering: A, B, ..., Z, AA, AB, ...
+
+    Parameters
+    ----------
+    index : int
+        Nonnegative zero-based index.
+
+    Returns
+    -------
+    label : str
+        Alphabetic representation of the index.
+    """
     result = ""
 
     while True:
@@ -251,7 +233,9 @@ def _nest_dict_inner_level(flat_dict, sep="/"):
         if isinstance(key, str):
             outer_key, inner_key = key.rsplit(sep, maxsplit=1)
         else:
-            outer_key, inner_key = key
+            outer_key, inner_key = key[:-1], key[-1]
+            if len(outer_key) == 1:
+                outer_key = outer_key[0]
 
         inner_dict = nested_dict[outer_key] = nested_dict.get(outer_key, {})
         inner_dict[inner_key] = value

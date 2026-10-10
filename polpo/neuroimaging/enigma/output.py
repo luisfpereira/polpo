@@ -1,7 +1,7 @@
 import numpy as np
 import polars as pl
 
-import polpo.utils as putils
+from polpo.utils import unnest_list
 
 from .naming import get_all_subcortical_structs, name_to_aseg_id
 
@@ -43,7 +43,7 @@ def load_session_outputs(filenames, struct_subset=None, output="LogJacs"):
         df = pl.read_csv(filename, columns=all_cols)
         if name2cols is None:
             name2cols = _struct_subset2cols(df, struct_subset, output=output)
-            all_cols = putils.unnest_list(name2cols.values())
+            all_cols = unnest_list(name2cols.values())
 
         data_ = {}
         for struct_name, cols in name2cols.items():
