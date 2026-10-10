@@ -2,8 +2,8 @@
 
 from deformetrica.api.deformetrica import Deformetrica
 
-import polpo.utils as putils
 from polpo.ext.deformetrica.io import find_template
+from polpo.utils import get_first
 
 
 def estimate_deterministic_atlas(
@@ -74,7 +74,7 @@ def estimate_deterministic_atlas(
         Path to the estimated atlas.
     """
     if source is None:
-        source = next(iter(targets))
+        source = get_first(targets)
 
     template_specifications = config.build_template_specifications(source)
 

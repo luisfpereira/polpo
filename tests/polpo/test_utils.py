@@ -4,6 +4,7 @@ import pytest
 
 from polpo.utils import (
     expand_path_names,
+    get_first,
     has_package,
     index_to_letters,
     merge_dicts,
@@ -12,6 +13,12 @@ from polpo.utils import (
     unnest_dict,
     unnest_list,
 )
+
+
+def test_get_first():
+    assert get_first([1, 2, 3]) == 1
+    assert get_first(iter([1, 2, 3])) == 1
+    assert get_first({"a": 1, "b": 2}) == 1
 
 
 def test_unnest_list():

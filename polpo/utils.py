@@ -8,6 +8,14 @@ import string
 from pathlib import Path
 
 
+def get_first(data):
+    """Return the first value of a ``dict`` or first element of an iterable."""
+    if isinstance(data, dict):
+        return next(iter(data.values()))
+
+    return next(iter(data))
+
+
 def unnest_list(ls):
     """Flatten a sequence of iterables by one level.
 
