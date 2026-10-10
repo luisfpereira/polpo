@@ -9,8 +9,6 @@ import socket
 import string
 from pathlib import Path
 
-from .dict_ import *  # noqa: F403
-
 
 def unnest_list(ls):
     return list(itertools.chain(*ls))
@@ -178,3 +176,151 @@ def index_to_letters(index):
             return result
 
         index -= 1
+
+
+def unnest_dict(nested_dict, sep="/", current_key=None, flat_dict=None):
+    """Flatten a nested dictionary by combining keys along each path.
+
+    Parameters
+    ----------
+    nested_dict : dict
+        Dictionary to flatten.
+    sep : str or None
+        Separator used to join keys. If not a string, keys are
+        represented as tuples.
+    current_key : str or tuple
+        Key prefix accumulated during recursion.
+    flat_dict : dict
+        Dictionary populated during recursion.
+
+    Returns
+    -------
+    flat_dict : dict
+        Flattened dictionary mapping key paths to leaf values.
+    """
+    if isinstance(sep, str):
+        prefix = "" if current_key is None else f"{current_key}{sep}"
+
+        def _update_key(key):
+            return f"{prefix}{key}"
+
+    else:
+        prefix = () if current_key is None else current_key
+
+        def _update_key(key):
+            return prefix + (key,)
+
+    if flat_dict is None:
+        flat_dict = {}
+
+    for key, value in nested_dict.items():
+        new_key = _update_key(key)
+
+        if not isinstance(value, dict):
+            flat_dict[new_key] = value
+        else:
+            flat_dict = unnest_dict(
+                value, sep=sep, current_key=new_key, flat_dict=flat_dict
+            )
+
+    return flat_dict
+
+
+def _nest_dict_inner_level(flat_dict, sep="/"):
+    """Move the final segment of each key into an inner ``dict``.
+
+    For string keys, segments are separated by ``sep``.
+
+    Parameters
+    ----------
+    flat_dict : dict
+        Dictionary with composite keys.
+    sep : str
+        Separator used to split string keys. Tuple keys are
+        unpacked directly.
+
+    Returns
+    -------
+    nested_dict : dict
+        Dictionary with the final key component moved to an
+        inner dictionary.
+    """
+    nested_dict = {}
+
+    for key, value in flat_dict.items():
+        if isinstance(key, str):
+            outer_key, inner_key = key.rsplit(sep, maxsplit=1)
+        else:
+            outer_key, inner_key = key
+
+        inner_dict = nested_dict[outer_key] = nested_dict.get(outer_key, {})
+        inner_dict[inner_key] = value
+
+    return nested_dict
+
+
+def nest_dict(flat_dict, sep="/"):
+    """Convert a flat dictionary into a nested dictionary.
+
+    Repeatedly nests the final component of each key until no
+    further nesting is possible.
+
+    Parameters
+    ----------
+    flat_dict : dict
+        Dictionary with composite keys, typically strings separated
+        by `sep`.
+    sep : str
+        Separator used to split string keys.
+
+    Returns
+    -------
+    nested_dict : dict
+        Dictionary reconstructed from the composite keys.
+
+    Notes
+    -----
+    Keys are expected to have a consistent nesting depth.
+    """
+    while flat_dict:
+        try:
+            flat_dict = _nest_dict_inner_level(flat_dict, sep=sep)
+        except ValueError:
+            # when unpack error is raised
+            break
+
+    return flat_dict
+
+
+def merge_dicts(dicts, *, check_duplicates=False):
+    """Merge a sequence of ``dict``.
+
+    Parameters
+    ----------
+    dicts : iterable of dict
+        ``dict`` to merge, in order.
+    check_duplicates : bool
+        Whether to raise an error when a key occurs in multiple
+        ``dict``. Otherwise, later values overwrite earlier ones.
+
+    Returns
+    -------
+    merged : dict
+        Dictionary containing the merged key-value pairs.
+
+    Raises
+    ------
+    ValueError
+        If duplicate keys are found and `check_duplicates` is True.
+    """
+    result = {}
+
+    for dict_ in dicts:
+        if check_duplicates:
+            duplicates = result.keys() & dict_.keys()
+            if duplicates:
+                raise ValueError(f"Duplicate keys: {sorted(duplicates)}")
+
+        result.update(dict_)
+
+    return result

@@ -6,7 +6,7 @@ from polpo.distmat import PairwiseDistances
 from polpo.distmat.pairwise import pairwise_dists
 from polpo.ext.numpy.io import load_dict, save_dict_as_array
 from polpo.io.json import load_json
-from polpo.utils.dict_ import merge_dicts
+from polpo.utils import merge_dicts
 from polpo.workflow.task import TaskRunner
 
 from .output import LddmmToGlobalOutput
