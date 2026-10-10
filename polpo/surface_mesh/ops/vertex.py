@@ -1,6 +1,6 @@
 import numpy as np
 
-from polpo.surface_mesh.face import compute_face_areas
+from polpo.surface_mesh.ops.face import compute_face_areas
 
 # TODO: make gs compatible
 
