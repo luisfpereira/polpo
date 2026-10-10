@@ -1,109 +1,94 @@
 from pathlib import Path
 
-import polpo.pipeline.dict as ppdict
-from polpo.bids import DerFolderSelector
-from polpo.enigma.output import load_output
-from polpo.pipeline import BranchingPipeline
+from polpo.dataset import NestedDataset
+from polpo.neuroimaging.bids import find_derivative_dir
+from polpo.neuroimaging.enigma.output import load_output as load_enigma_output
 
-from .defaults import MATERNAL_PROJECT_FOLDER, PILOT_PROJECT_FOLDER
-from .path import _session_sorter, _split_subject_subset
-from .utils import _index_session_by_step
+from .defaults import DATA_DIR, MATERNAL_PROJECT_FOLDER, PILOT_PROJECT_FOLDER
+from .maternal.path import _session_sort_key
+from .path import _split_subject_subset
 
 
-def OutputLoader(
+def load_output(
+    data_dir=None,
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
-    index_session_by="id",
-    remove_repeated=True,
     output="LogJacs",
+    remove_repeated=True,
 ):
-    """Log jacobian loader.
+    """Load ENIGMA outputs indexed by subject and session.
 
     Parameters
     ----------
+    data_dir : path-like
+        Dataset root directory.
     subject_subset : array-like
         Subject identifiers to select. If ``None``, all subjects are used.
     session_subset : array-like
         Session identifiers to select. If ``None``, all sessions are used.
     struct_subset : array-like
         Structure identifiers to select. If ``None``, all structures are used.
-    index_session_by : {"id", "gest_week", "birth"}
-        Strategy used to index sessions in the output.
+    output : str
+        ENIGMA output type, either ``"LogJacs"`` or ``"thick"``.
+    remove_repeated : bool
+        Whether to exclude repeated pilot session ``27``.
 
-        - ``"id"``: keep the original session identifiers.
-        - ``"gest_week"``: replace session identifiers with gestational
-        weeks.
-        - ``"birth"``: replace session identifiers with gestational weeks
-        relative to birth (birth week corresponds to 0).
-    output : {"LogJacs", "thick"}
+    Returns
+    -------
+    dataset : NestedDataset
+        ENIGMA outputs indexed by subject and session.
+        Each value maps structure identifiers to arrays.
     """
-    pilot_subset, subject_subset_ = _split_subject_subset(subject_subset)
-    derivative = "enigma"
+    if data_dir is None:
+        data_dir = DATA_DIR
 
-    pipes = []
-    if len(pilot_subset):
-        pipe = (
-            (lambda folder: Path(folder).expanduser() / PILOT_PROJECT_FOLDER)
-            + DerFolderSelector(derivative)
-            + (lambda path: path / "data" / f"subjects_file_{output}.csv")
-            + (
-                lambda filename: load_output(
-                    filename,
-                    subject_subset=pilot_subset,
-                    session_subset=session_subset,
-                    struct_subset=struct_subset,
-                    output=output,
-                )
+    data_dir = Path(data_dir).expanduser()
+    pilot_subset, maternal_subset = _split_subject_subset(subject_subset)
+
+    datasets = []
+
+    for folder, subjects, sort_key in (
+        (PILOT_PROJECT_FOLDER, pilot_subset, int),
+        (MATERNAL_PROJECT_FOLDER, maternal_subset, _session_sort_key),
+    ):
+        if not subjects:
+            continue
+
+        derivative_dir = find_derivative_dir(data_dir / folder, "enigma")
+        filename = derivative_dir / "data" / f"subjects_file_{output}.csv"
+
+        dataset = NestedDataset(
+            load_enigma_output(
+                filename,
+                subject_subset=subjects,
+                session_subset=session_subset,
+                struct_subset=struct_subset,
+                output=output,
             )
-            + (ppdict.DictMap(ppdict.RemoveKeys(["27"])) if remove_repeated else None)
-        )
-        pipes.append(pipe)
+        ).sort_inner_keys(sort_key)
 
-    if len(subject_subset_):
-        pipe = (
-            (lambda folder: Path(folder).expanduser() / MATERNAL_PROJECT_FOLDER)
-            + DerFolderSelector(derivative)
-            + (lambda path: path / "data" / f"subjects_file_{output}.csv")
-            + (
-                lambda filename: load_output(
-                    filename,
-                    subject_subset=subject_subset_,
-                    session_subset=session_subset,
-                    struct_subset=struct_subset,
-                    output=output,
-                )
-            )
-            + ppdict.DictMap(ppdict.KeySorter(_session_sorter))
-        )
-        pipes.append(pipe)
+        if folder == PILOT_PROJECT_FOLDER and remove_repeated:
+            dataset = dataset.drop_inner({"01": ["27"]})
 
-    # TODO: handle data_dir consistently
-    index_session_step = _index_session_by_step(
-        index_session_by,
-        subject_subset=subject_subset,
-    )
+        datasets.append(dataset)
 
-    if len(pipes) == 1:
-        return pipes[0] + index_session_step
-
-    return (
-        BranchingPipeline(pipes, merger=lambda data: data[0] | data[1])
-        + index_session_step
-    )
+    return NestedDataset.merge_many(datasets).sort_keys()
 
 
-def LogJacsLoader(
+def load_log_jacs(
+    data_dir=None,
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
-    index_session_by="id",
     remove_repeated=True,
 ):
-    return OutputLoader(
+    """Load ENIGMA log-Jacobian outputs."""
+    return load_output(
+        data_dir=data_dir,
         subject_subset=subject_subset,
         session_subset=session_subset,
         struct_subset=struct_subset,
-        index_session_by=index_session_by,
+        output="LogJacs",
         remove_repeated=remove_repeated,
     )
