@@ -9,8 +9,6 @@ connectivity is shared across the batch.
 
 import geomstats.backend as gs
 
-from polpo.utils.array import batch_slices
-
 
 def compute_face_coordinates(vertices, faces):
     """Gather coordinates of vertices defining each face.
@@ -27,8 +25,7 @@ def compute_face_coordinates(vertices, faces):
     face_coordinates : array-like, shape=[..., n_faces, 3, 3]
         Coordinates of the three vertices of every face.
     """
-    batch_slc = batch_slices(vertices, n_nonbatch_dims=2)
-    return vertices[batch_slc + (faces,)]
+    return vertices[..., faces, :]
 
 
 def compute_face_vertices(vertices, faces):

@@ -1,10 +1,9 @@
 import numpy as np
 
-from polpo.pipeline.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
 
 
-class PvExtractPoints(PreprocessingStep):
+class PvExtractPoints:
     """Get a subset of the grid (with cells).
 
     Cells are added if contain any of the given point indices.
@@ -42,7 +41,7 @@ class PvExtractPoints(PreprocessingStep):
         return subset
 
 
-class PvSelectSubset(PreprocessingStep):
+class PvSelectSubset:
     """Get subset of a mesh with given value."""
 
     def __init__(
@@ -76,7 +75,7 @@ class PvSelectSubset(PreprocessingStep):
         return mesh
 
 
-class PvSubsetSplitter(PreprocessingStep):
+class PvSubsetSplitter:
     def __init__(self, array_name="labels", progress_bar=False):
         super().__init__()
         self._selector = PvSelectSubset(

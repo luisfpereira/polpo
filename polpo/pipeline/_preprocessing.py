@@ -1,9 +1,6 @@
 import abc
-import importlib
 import itertools
 import logging
-import os
-import shutil
 import warnings
 from functools import wraps
 
@@ -13,8 +10,6 @@ from tqdm import tqdm
 from polpo.utils import is_non_string_iterable, unnest
 
 from .base import IdentityStep, Pipeline, PreprocessingStep
-
-# TODO: create polpo.preprocessing.iter
 
 
 def _wrap_step(step=None):
@@ -144,15 +139,6 @@ class TupleWithIncoming(TupleWith):
         super().__init__(step, incoming_first=True)
 
 
-class Sorter(PreprocessingStep):
-    def __init__(self, key=None):
-        super().__init__()
-        self.key = key
-
-    def __call__(self, data):
-        return sorted(data, key=self.key)
-
-
 class Filter(PreprocessingStep):
     def __init__(self, func, collection_type=list, to_iter=None):
         if to_iter is None:
@@ -191,16 +177,6 @@ class EmptySkipper(StepWrappingPreprocessingStep):
             return data
 
         return self.step(data)
-
-
-class WrapInList(PreprocessingStep):
-    def __call__(self, data):
-        return [data]
-
-
-class Listify(PreprocessingStep):
-    def __call__(self, data):
-        return list(data)
 
 
 class SerialMap(StepWrappingPreprocessingStep):
@@ -284,27 +260,6 @@ class IndexMap(StepWrappingPreprocessingStep):
         return data
 
 
-class Prefix(PreprocessingStep):
-    def __init__(self, prefix):
-        self.prefix = prefix
-
-    def __call__(self, value):
-        return self.prefix + value
-
-
-class Truncater(PreprocessingStep):
-    # useful for debugging
-
-    def __init__(self, value):
-        super().__init__()
-        self.value = value
-
-    def __call__(self, data):
-        if self.value is None:
-            return data
-        return data[: self.value]
-
-
 class DataPrinter(PreprocessingStep):
     # useful for debugging
 
@@ -379,72 +334,6 @@ class IfEmpty(IfCondition):
         super().__init__(step, else_step, condition=lambda x: len(x) == 0)
 
 
-class Eval(PreprocessingStep):
-    """Evaluate string.
-
-    Parameters
-    ----------
-    expr : str
-        String expression to be evaluated.
-    imports : list[str]
-        Imports required to evaluate string.
-    """
-
-    def __init__(self, expr, imports=()):
-        super().__init__()
-        self._expr = eval(expr, self._locals_from_imports(imports))
-
-    def _locals_from_imports(self, imports):
-        locals_ = {}
-        for import_ in imports:
-            import_ls = import_.split(".")
-            module_name = ".".join(import_ls[:-1])
-            obj_name = import_ls[-1]
-
-            if obj_name in locals():
-                continue
-
-            locals_[obj_name] = getattr(importlib.import_module(module_name), obj_name)
-        return locals_
-
-    def __call__(self, *args, **kwargs):
-        return self._expr(*args, **kwargs)
-
-
-class EvalFromImport(Eval):
-    """Evaluate imported function.
-
-    Parameters
-    ----------
-    import_: str
-        Import of function to evaluate.
-    """
-
-    def __init__(self, import_):
-        super().__init__(expr=import_.split(".")[-1], imports=[import_])
-
-
-class Lambda(Eval):
-    """Evaluate lambda function.
-
-    Syntax sugar for `Eval` where `string` is a lambda function.
-
-    Parameters
-    ----------
-    args : list[str]
-        Arguments of lambda function.
-    expr : str
-        Expression of lambda function.
-    imports : list[str]
-        Imports required to evaluate string.
-    """
-
-    def __init__(self, args, expr, imports=()):
-        args_str = ",".join(args)
-        lambda_ = f"lambda {args_str}: {expr}"
-        super().__init__(lambda_, imports)
-
-
 class Constant(PreprocessingStep):
     """Constant.
 
@@ -471,94 +360,6 @@ class Constant(PreprocessingStep):
         constant : any
         """
         return value if value is not None else self.value
-
-
-class Contains(PreprocessingStep):
-    """Check if an item is in a collection.
-
-    Examples include substring in string,
-    item in list, key in dict.
-
-    Parameters
-    ----------
-    item : object
-    negate : bool
-        Whether to negate predicate.
-    """
-
-    def __init__(self, item, negate=False):
-        super().__init__()
-        self.item = item
-        self.negate = negate
-
-    def __call__(self, collection):
-        """Apply step.
-
-        Parameters
-        ----------
-        collection : iterable
-
-        Returns
-        -------
-        membership : bool
-            Membership or lack of it (depending on negate).
-        """
-        out = self.item in collection
-        if self.negate:
-            return not out
-
-        return out
-
-
-class ContainsAll(PreprocessingStep):
-    """Check if a subset of items in a collection."""
-
-    def __init__(self, items, negate=False):
-        super().__init__()
-        self.items = items
-        self.negate = negate
-
-    def __call__(self, collection):
-        """Apply step.
-
-        Parameters
-        ----------
-        collection : iterable
-
-        Returns
-        -------
-        membership : bool
-            Membership or lack of it (depending on negate) for all items.
-        """
-        out = all(item in collection for item in self.items)
-        if self.negate:
-            return not out
-
-        return out
-
-
-class ContainsAny(PreprocessingStep):
-    # TODO: update docstrings
-    """Check if subset of items in a collection."""
-
-    def __init__(self, items, negate=False):
-        super().__init__()
-        self.items = items
-        self.negate = negate
-
-    def __call__(self, collection):
-        """Apply step.
-
-        Returns
-        -------
-        membership : bool
-            Membership or lack of it (depending on negate) for all items.
-        """
-        out = any(item in collection for item in self.items)
-        if self.negate:
-            return not out
-
-        return out
 
 
 class MethodApplier(PreprocessingStep):
@@ -615,56 +416,6 @@ class StepWithLogging(StepWrappingPreprocessingStep):
     def __call__(self, data=None):
         logging.info(self.msg)
         return self.step(data)
-
-
-class CachablePipeline(PreprocessingStep):
-    # assumes existence of cache_dir means cache has been done
-    # cache_pipe takes cache_dir
-    # no_cache_pipe takes data
-    # to_cache_pipe takes (cache_dir, data)
-
-    # overwrite: cache folder is overwritten if existing, otherwise raises error
-
-    def __init__(
-        self,
-        cache_dir,
-        no_cache_pipe,
-        cache_pipe,
-        to_cache_pipe,
-        use_cache=True,
-        cache=True,
-        overwrite=False,
-    ):
-        super().__init__()
-        self.no_cache_pipe = no_cache_pipe
-        self.cache_pipe = cache_pipe
-        self.to_cache_pipe = to_cache_pipe
-        self.cache_dir = cache_dir
-        self.use_cache = use_cache
-        # weird, but for debug purposes
-        self.cache = cache
-        self.overwrite = overwrite
-
-    def __call__(self, data=None):
-        if self.use_cache and os.path.exists(self.cache_dir):
-            return self.cache_pipe(self.cache_dir)
-
-        out = self.no_cache_pipe(data)
-
-        if not self.cache:
-            return out
-
-        if self.overwrite:
-            self.reset_cache()
-
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.to_cache_pipe((self.cache_dir, out))
-
-        return out
-
-    def reset_cache(self):
-        if os.path.exists(self.cache_dir):
-            shutil.rmtree(self.cache_dir)
 
 
 class GroupBy(PreprocessingStep):

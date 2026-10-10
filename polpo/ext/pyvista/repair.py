@@ -1,8 +1,7 @@
-from polpo.pipeline.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
 
 
-class PvExtractLargest(PreprocessingStep):
+class PvExtractLargest:
     """Extract largest connected set in mesh.
 
     https://docs.pyvista.org/api/core/_autosummary/pyvista.datasetfilters.extract_largest#pyvista.DataSetFilters.extract_largest

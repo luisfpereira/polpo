@@ -1,7 +1,4 @@
-from polpo.pipeline.base import PreprocessingStep
-
-
-class TrimeshDecimator(PreprocessingStep):
+class TrimeshDecimator:
     """Trimesh simplify quadratic decimation.
 
     Parameters

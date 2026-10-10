@@ -1,9 +1,7 @@
 import numpy as np
 
-from polpo.pipeline.base import PreprocessingStep
 
-
-class TrimeshFaceRemoverByArea(PreprocessingStep):
+class TrimeshFaceRemoverByArea:
     # TODO: generalize?
 
     def __init__(self, threshold=0.01, inplace=True):
@@ -21,7 +19,7 @@ class TrimeshFaceRemoverByArea(PreprocessingStep):
         return mesh
 
 
-class TrimeshDegenerateFacesRemover(PreprocessingStep):
+class TrimeshDegenerateFacesRemover:
     """Trimesh degenerate faces remover.
 
     https://trimesh.org/trimesh.base.html#trimesh.base.Trimesh.nondegenerate_faces
@@ -47,7 +45,7 @@ class TrimeshDegenerateFacesRemover(PreprocessingStep):
         return mesh
 
 
-class TrimeshLargestComponentSelector(PreprocessingStep):
+class TrimeshLargestComponentSelector:
     def __init__(self, only_watertight=False):
         super().__init__()
         self.only_watertight = only_watertight

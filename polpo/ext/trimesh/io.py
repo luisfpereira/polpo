@@ -2,10 +2,8 @@ import os
 
 import trimesh
 
-from polpo.pipeline.base import PreprocessingStep
 
-
-class TrimeshToPly(PreprocessingStep):
+class TrimeshToPly:
     def __init__(
         self,
         dirname="",
@@ -41,7 +39,7 @@ class TrimeshToPly(PreprocessingStep):
         return path
 
 
-class TrimeshReader(PreprocessingStep):
+class TrimeshReader:
     """Read file.
 
     Uses `load_mesh` (

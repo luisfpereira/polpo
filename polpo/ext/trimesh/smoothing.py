@@ -1,9 +1,7 @@
 import trimesh
 
-from polpo.pipeline.base import PreprocessingStep
 
-
-class TrimeshLaplacianSmoothing(PreprocessingStep):
+class TrimeshLaplacianSmoothing:
     """
     https://trimesh.org/trimesh.smoothing.html#trimesh.smoothing.filter_laplacian
     """

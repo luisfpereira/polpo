@@ -1,10 +1,9 @@
 import skimage
 
-from polpo.pipeline.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
 
 
-class MarchingCubes(PreprocessingStep):
+class MarchingCubes:
     """
     https://scikit-image.org/docs/stable/api/skimage.measure.html#skimage.measure.marching_cubes
     """

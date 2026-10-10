@@ -1,11 +1,10 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
-from polpo.pipeline.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
 
 
-class PvDecimate(PreprocessingStep):
+class PvDecimate:
     """Reduce the number of triangles in a triangular mesh.
 
     Uses vtkQuadricDecimation.

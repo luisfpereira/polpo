@@ -1,31 +1,4 @@
 import abc
-import logging
-import os
-
-# TODO: is there any difference between a DataLoader and a step?
-
-
-class DataLoader(abc.ABC):
-    """Data loader."""
-
-    @abc.abstractmethod
-    def load(self):
-        """Load data."""
-
-
-class CacheableDataLoader(DataLoader, abc.ABC):
-    def __init__(self, use_cache=True):
-        super().__init__()
-        self.use_cache = use_cache
-
-    def exists(self, path):
-        if self.use_cache and os.path.exists(path):
-            logging.info(
-                f"Data has already been downloaded... using cached file ('{path}')."
-            )
-            return True
-
-        return False
 
 
 class PreprocessingStep(abc.ABC):
@@ -67,7 +40,7 @@ class IdentityStep(PreprocessingStep):
         return data
 
 
-class Pipeline(PreprocessingStep, DataLoader):
+class Pipeline(PreprocessingStep):
     def __init__(self, steps, data=None):
         super().__init__()
         self.steps = steps
@@ -119,21 +92,3 @@ class Pipeline(PreprocessingStep, DataLoader):
                 steps = [other] + steps
 
         return Pipeline(steps)
-
-
-class RegistrationStep(PreprocessingStep, abc.ABC):
-    def __init__(self, target=None):
-        super().__init__()
-        self.target = target
-
-    def _get_source_and_target(self, data):
-        if isinstance(data, (list, tuple)):
-            source, target = data
-        else:
-            if self.target is None:
-                raise ValueError("Target mesh is undefined.")
-
-            source = data
-            target = self.target
-
-        return source, target

@@ -1,10 +1,6 @@
 # TODO: move to utils folder
 
-import json
 import random
-from pathlib import Path
-
-from polpo.auto_all import auto_all
 
 
 def extract_random_key(data):
@@ -105,23 +101,3 @@ def merge_dicts(dicts, *, check_duplicates=False):
         result.update(dict_)
 
     return result
-
-
-class JsonDict(dict):
-    # TODO: use or delete
-    def __init__(self, path, *, load=True, indent=2):
-        self.path = Path(path)
-        self.indent = indent
-
-        if load and self.path.exists():
-            with self.path.open() as f:
-                super().__init__(json.load(f))
-        else:
-            super().__init__()
-
-    def write(self):
-        with self.path.open("w") as file:
-            json.dump(self, file, indent=self.indent)
-
-
-__all__ = auto_all(globals())

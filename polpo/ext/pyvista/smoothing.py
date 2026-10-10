@@ -1,8 +1,7 @@
-from polpo.pipeline.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
 
 
-class PvSmoothTaubin(PreprocessingStep):
+class PvSmoothTaubin:
     """Smooth a PolyData DataSet with Taubin smoothing.
 
     https://docs.pyvista.org/api/core/_autosummary/pyvista.polydatafilters.smooth_taubin#pyvista.PolyDataFilters.smooth_taubin

@@ -3,10 +3,8 @@ from pathlib import Path
 
 import pyvista as pv
 
-from polpo.pipeline.base import PreprocessingStep
 
-
-class PvReader(PreprocessingStep):
+class PvReader:
     """Read file.
 
     https://docs.pyvista.org/api/utilities/_autosummary/pyvista.read
@@ -39,7 +37,7 @@ class PvReader(PreprocessingStep):
         return poly_data
 
 
-class PvWriter(PreprocessingStep):
+class PvWriter:
     """Write a surface mesh to disk.
 
     https://docs.pyvista.org/api/core/_autosummary/pyvista.polydata.save

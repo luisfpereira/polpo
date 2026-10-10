@@ -10,7 +10,6 @@ import string
 from pathlib import Path
 
 from .dict_ import *  # noqa: F403
-from .pd import *  # noqa: F403
 
 try:
     from .url import *  # noqa: F403
