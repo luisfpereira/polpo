@@ -1,9 +1,7 @@
-import getpass
 import glob
 import importlib
 import inspect
 import itertools
-import socket
 import string
 from pathlib import Path
 
@@ -73,14 +71,6 @@ def params_to_kwargs(obj, ignore=(), renamings=None, ignore_private=False, func=
             kwargs.pop(key)
 
     return kwargs
-
-
-def in_frank():
-    return socket.gethostname() == "frank"
-
-
-def get_frank_user_scratch():
-    return Path(f"/scratch/{getpass.getuser()}")
 
 
 def expand_path_names(names):

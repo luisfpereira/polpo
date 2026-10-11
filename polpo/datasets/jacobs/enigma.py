@@ -4,13 +4,13 @@ from polpo.dataset import NestedDataset
 from polpo.neuroimaging.bids import find_derivative_dir
 from polpo.neuroimaging.enigma.output import load_output as load_enigma_output
 
-from .defaults import DATA_DIR, MATERNAL_PROJECT_FOLDER, PILOT_PROJECT_FOLDER
+from .defaults import MATERNAL_PROJECT_FOLDER, PILOT_PROJECT_FOLDER
 from .maternal.path import _session_sort_key
 from .path import _split_subject_subset
 
 
 def load_output(
-    data_dir=None,
+    data_dir,
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
@@ -40,10 +40,6 @@ def load_output(
         ENIGMA outputs indexed by subject and session.
         Each value maps structure identifiers to arrays.
     """
-    if data_dir is None:
-        data_dir = DATA_DIR
-
-    data_dir = Path(data_dir).expanduser()
     pilot_subset, maternal_subset = _split_subject_subset(subject_subset)
 
     datasets = []
@@ -77,7 +73,7 @@ def load_output(
 
 
 def load_log_jacs(
-    data_dir=None,
+    data_dir,
     subject_subset=None,
     session_subset=None,
     struct_subset=None,

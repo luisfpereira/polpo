@@ -1,14 +1,12 @@
-from pathlib import Path
-
 import pandas as pd
 
-from .defaults import DATA_DIR, MATERNAL_PROJECT_FOLDER, PILOT_PROJECT_FOLDER
+from .defaults import MATERNAL_PROJECT_FOLDER, PILOT_PROJECT_FOLDER
 from .maternal.tabular import load_session_data as load_maternal_session_data
 from .pilot.tabular import load_session_data as load_pilot_session_data
 
 
 def load_session_data(
-    data_dir=None,
+    data_dir,
     subject_subset=None,
     index_by_session=False,
 ):
@@ -28,11 +26,6 @@ def load_session_data(
     data : pandas.DataFrame
         Maternal session metadata.
     """
-    if data_dir is None:
-        data_dir = DATA_DIR
-
-    data_dir = Path(data_dir).expanduser()
-
     include_pilot = subject_subset is None or "01" in subject_subset
 
     maternal_subset = subject_subset
@@ -70,7 +63,7 @@ def load_session_data(
 
 
 def get_session_to_week(
-    data_dir=None,
+    data_dir,
     subject_subset=None,
 ):
     """Get gestational week indexed by subject and session.

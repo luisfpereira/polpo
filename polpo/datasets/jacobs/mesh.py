@@ -2,13 +2,12 @@ from polpo.neuroimaging.dataset import group_by_structure
 from polpo.neuroimaging.mesh import read_geometry, select_mesh_paths
 from polpo.surface_mesh import Surface
 
-from .defaults import DATA_DIR
 from .path import select_folders
 
 
 def load_dataset(
     derivative,
-    data_dir=None,
+    data_dir,
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
@@ -37,9 +36,6 @@ def load_dataset(
         Dataset indexed by structure. Each value is a ``NestedDataset`` indexed
         by subject and session.
     """
-    if data_dir is None:
-        data_dir = DATA_DIR
-
     folders = select_folders(
         data_dir,
         derivative,

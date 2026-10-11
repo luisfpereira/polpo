@@ -1,12 +1,11 @@
 from polpo.neuroimaging.mri import load_image, select_segmentation_path
 
-from .defaults import DATA_DIR
 from .path import select_folders
 
 
 def load_subcortical_segmentations(
     derivative,
-    data_dir=None,
+    data_dir,
     subject_subset=None,
     session_subset=None,
     as_image=False,
@@ -32,9 +31,6 @@ def load_subcortical_segmentations(
         Dataset indexed by subject and session, containing segmentation
         paths or image arrays.
     """
-    if data_dir is None:
-        data_dir = DATA_DIR
-
     folders = select_folders(
         data_dir,
         derivative,
