@@ -211,7 +211,7 @@ class TaskRunner(ABC):
             exclude_tasks=exclude_tasks,
         )
 
-    def _run_tasks(self, tasks, overwrite, continue_on_error):
+    def _run_tasks(self, tasks, overwrite, continue_on_error, raise_on_error):
         """Run resolved tasks and update their execution state.
 
         Parameters
@@ -222,6 +222,10 @@ class TaskRunner(ABC):
             Whether to rerun tasks already marked as completed.
         continue_on_error : bool
             Whether to continue running tasks after a task fails.
+        raise_on_error : bool
+            Whether to re-raise task exceptions after recording the failure.
+            Takes precedence over `continue_on_error`.
+            When False, failures are handled according to `continue_on_error`.
 
         Returns
         -------
@@ -256,6 +260,9 @@ class TaskRunner(ABC):
                     error,
                     exc_info=self.logger.isEnabledFor(logging.DEBUG),
                 )
+
+                if raise_on_error:
+                    raise
 
                 if not continue_on_error:
                     raise
@@ -315,6 +322,7 @@ class TaskRunner(ABC):
         exclude_tasks=None,
         overwrite=False,
         continue_on_error=True,
+        raise_on_error=False,
     ):
         """Run selected tasks.
 
@@ -328,6 +336,10 @@ class TaskRunner(ABC):
             Whether to rerun tasks already marked as completed.
         continue_on_error : bool
             Whether to continue running remaining tasks after a task fails.
+        raise_on_error : bool
+            Whether to re-raise task exceptions after recording the failure.
+            Takes precedence over `continue_on_error`.
+            When False, failures are handled according to `continue_on_error`.
 
         Returns
         -------
@@ -336,7 +348,7 @@ class TaskRunner(ABC):
         """
         tasks = self._resolve_tasks(tasks, exclude_tasks)
         with self.timer():
-            return self._run_tasks(tasks, overwrite, continue_on_error)
+            return self._run_tasks(tasks, overwrite, continue_on_error, raise_on_error)
 
     @property
     def manifest(self):
@@ -392,6 +404,7 @@ class CompositeTaskRunner(TaskRunner):
         runner,
         overwrite=False,
         continue_on_error=False,
+        raise_on_error=False,
     ):
         """Create a task that executes a child runner.
 
@@ -403,6 +416,9 @@ class CompositeTaskRunner(TaskRunner):
             Whether to rerun completed tasks in the child runner.
         continue_on_error : bool
             Whether the child runner should continue after a task fails.
+        raise_on_error : bool
+            Whether the child runner should re-raise task exceptions after recording
+            the failure. Takes precedence over `continue_on_error`.
 
         Returns
         -------
@@ -419,6 +435,7 @@ class CompositeTaskRunner(TaskRunner):
             runner.run(
                 overwrite=overwrite,
                 continue_on_error=continue_on_error,
+                raise_on_error=raise_on_error,
             )
 
             if runner.manifest_["status"] != "completed":
@@ -444,6 +461,7 @@ class CompositeTaskRunner(TaskRunner):
         exclude_tasks=None,
         overwrite=False,
         continue_on_error=True,
+        raise_on_error=False,
     ):
         """Run selected child runners.
 
@@ -459,6 +477,10 @@ class CompositeTaskRunner(TaskRunner):
         continue_on_error : bool
             Whether to continue after failures, both within child runners and
             across child runners.
+        raise_on_error : bool
+            Whether to re-raise task exceptions after recording the failure.
+            Takes precedence over `continue_on_error`.
+            When False, failures are handled according to `continue_on_error`.
 
         Returns
         -------
@@ -472,6 +494,7 @@ class CompositeTaskRunner(TaskRunner):
                 runner,
                 overwrite=overwrite,
                 continue_on_error=continue_on_error,
+                raise_on_error=raise_on_error,
             )
             for name, runner in tasks.items()
         }
@@ -480,6 +503,7 @@ class CompositeTaskRunner(TaskRunner):
             tasks,
             overwrite=overwrite,
             continue_on_error=continue_on_error,
+            raise_on_error=raise_on_error,
         )
 
 
@@ -561,20 +585,16 @@ class ResolvedTaskRunner:
         exclude_tasks=None,
         overwrite=False,
         continue_on_error=True,
+        raise_on_error=False,
     ):
-        """Return the resolved tasks.
-
-        Returns
-        -------
-        tasks : dict
-            Mapping from task names to task callables.
-        """
         """Run tasks from the resolved task selection."""
         tasks = self._resolve_tasks(tasks, exclude_tasks)
 
         return self._runner.run(
             tasks=tasks,
             overwrite=overwrite,
+            continue_on_error=continue_on_error,
+            raise_on_error=raise_on_error,
         )
 
     def __getattr__(self, name):
