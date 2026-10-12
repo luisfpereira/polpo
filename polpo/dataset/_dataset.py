@@ -470,12 +470,21 @@ class NestedDataset(DatasetMapping):
 
     def drop_inner(self, keys):
         """Drop inner entries for each outer key."""
-        return NestedDataset(
-            {
-                outer_key: Dataset(values).drop(keys.get(outer_key, [])).data
-                for outer_key, values in self.items()
-            }
-        )
+        data = {
+            outer_key: Dataset(values).drop(keys.get(outer_key, [])).data
+            for outer_key, values in self.items()
+        }
+        return NestedDataset({key: inner for key, inner in data.items() if inner})
+
+    def merge(self, other, strict=True):
+        """Merge datasets.
+
+        If not strict, entries of other whose keys are already in self are
+        dropped, so self's values win. Assumes overlapping entries are identical.
+        """
+        if not strict:
+            other = other.drop_inner(self.nested_keys())
+        return type(self).merge_many([self, other])
 
     def sort_inner_keys(self, key=None, reverse=False):
         return type(self)(
