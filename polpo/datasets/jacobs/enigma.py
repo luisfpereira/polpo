@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from polpo.dataset import NestedDataset
 from polpo.neuroimaging.bids import find_derivative_dir
 from polpo.neuroimaging.enigma.output import load_output as load_enigma_output
