@@ -5,7 +5,7 @@ from abc import ABC
 from functools import partial
 from pathlib import Path
 
-from polpo.io.json import dump_json, load_json
+from polpo.io.json import check_json_serializable, dump_json, load_json
 from polpo.time import Timer, utc_now
 
 
@@ -81,6 +81,9 @@ class TaskRunner(ABC):
         self.resolved_ = {}
         self.timer = Timer()
         self.logger = logger or _get_default_logger(self)
+
+        if self.metadata:
+            check_json_serializable(self.metadata)
 
     @classmethod
     def from_callable(cls, fn, state_dir=None, name=None, metadata=None, logger=None):
