@@ -5,7 +5,6 @@ import numpy as np
 from polpo.dataset import Dataset, NestedDataset
 from polpo.io.json import check_json_serializable, dump_json
 from polpo.surface_mesh.deformetrica import FrechetMean, Point
-from polpo.surface_mesh.registration import SurfaceRigidRegistration
 from polpo.surface_mesh.varifold.tuning import SigmaFromScale
 from polpo.time import Timer, utc_now
 
@@ -17,8 +16,6 @@ class LddmmToGlobal:
 
     Parameters
     ----------
-    known_correspondences : bool
-        Whether meshes have known vertex correspondences.
     results_dir : path-like
         Directory where protocol outputs and intermediate results are stored.
     ratio_kernel : float
@@ -33,17 +30,14 @@ class LddmmToGlobal:
         Maximum number of registration optimization iterations.
     tol : float
         Convergence tolerance for registration optimization.
-    random_state : int
-        Seed controlling random operations in the protocol.
     metadata : dict
         Metadata persisted with the protocol results.
     """
 
-    PROTOCOL_VERSION = "0.4.0"
+    PROTOCOL_VERSION = "0.5.0"
 
     def __init__(
         self,
-        known_correspondences,
         results_dir,
         ratio_kernel=1.5,
         discretization_ratio=2.0,
@@ -51,12 +45,10 @@ class LddmmToGlobal:
         regularization=1.0,
         max_iter=500,
         tol=1e-5,
-        random_state=None,
         metadata=None,
     ):
         self.timer = Timer()
 
-        self.known_correspondences = known_correspondences
         self.results_dir = results_dir
 
         self.ratio_kernel = ratio_kernel
@@ -68,7 +60,6 @@ class LddmmToGlobal:
         self.tol = tol
 
         self.metadata = dict(metadata or {})
-        self.random_state = random_state
 
         check_json_serializable(self.metadata)
 
@@ -76,16 +67,9 @@ class LddmmToGlobal:
 
     def _reset(self):
         """Reset runtime state for a new protocol run."""
-        seed_sequence = np.random.SeedSequence(self.random_state)
-        self.rng_ = np.random.default_rng(seed_sequence)
-
         self.params_ = {
             "version": self.PROTOCOL_VERSION,
             "metadata": self.metadata,
-            "random_state": self.random_state,
-            "rigid_alignment": {
-                "known_correspondences": self.known_correspondences,
-            },
             "kernel_tuning": {
                 "ratio_kernel": self.ratio_kernel,
                 "discretization_ratio": self.discretization_ratio,
@@ -98,42 +82,7 @@ class LddmmToGlobal:
             },
         }
 
-        self.results_ = {
-            "started_at": utc_now(),
-            "random_state": int(seed_sequence.entropy),
-        }
-
-    def preprocess_meshes(self, data, target_data=None):
-        """Rigidly align meshes to a randomly selected target.
-
-        Parameters
-        ----------
-        data : Dataset
-            Surface meshes to align.
-        target_data : Dataset or None
-            Surface meshes from which to select the alignment target.
-
-        Returns
-        -------
-        aligned : Dataset
-            Rigidly aligned surface meshes.
-        """
-        target_data = target_data or data
-
-        with self.timer("prep"):
-            target_mesh = target_data.sample(random_state=self.rng_)
-
-            registration = SurfaceRigidRegistration(
-                known_correspondences=self.known_correspondences
-            ).against_same_target(target_mesh.values_list()[0])
-
-            data_ = data.transform(registration)
-
-        self.results_["rigid_alignment"] = {
-            "key": target_mesh.keys_list()[0],
-        }
-
-        return data_
+        self.results_ = {"started_at": utc_now()}
 
     def tune_kernel(self, meshes):
         """Estimate kernel widths using atlas meshes.
@@ -384,20 +333,14 @@ class LddmmToGlobal:
 
         try:
             with self.timer():
-                self.current_stage_ = "preprocessing"
-                nested_meshes_ = self.preprocess_meshes(
-                    nested_meshes.flatten(),
-                    nested_meshes.drop_inner(atlas_only_keys).flatten(),
-                ).nest()
-
                 self.current_stage_ = "metric_instantiation"
-                atlas_meshes = nested_meshes_.select_inner(atlas_keys)
+                atlas_meshes = nested_meshes.select_inner(atlas_keys)
                 kernel_width, attachment_kernel_width = self.tune_kernel(
                     atlas_meshes.flatten()
                 )
                 metric = self.instantiate_metric(kernel_width, attachment_kernel_width)
 
-                nested_points = self.meshes_as_points(nested_meshes_, metric)
+                nested_points = self.meshes_as_points(nested_meshes, metric)
                 atlas_points = nested_points.select_inner(atlas_keys)
 
                 self.current_stage_ = "local_atlases"
