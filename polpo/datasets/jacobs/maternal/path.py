@@ -54,7 +54,7 @@ def select_folders(
     ).sort_inner_keys(_session_sort_key)
 
     excluded_sessions = {
-        "1011B": {"pre1", "pre2"},
+        "1011B": {"gest10", "pre1", "pre2"},
     }
 
     return folders.drop_inner(excluded_sessions)
