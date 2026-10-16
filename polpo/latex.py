@@ -89,12 +89,37 @@ def add_subfigure(figure_name, width=1.0):
     )
 
 
+def add_title_row(titles, width):
+    """Generate LaTeX code for a row of centered column titles.
+
+    Parameters
+    ----------
+    titles : sequence of str
+        Column titles, in display order.
+    width : float
+        Column width as a fraction of the text width.
+
+    Returns
+    -------
+    text : str
+        LaTeX code for the title row, followed by vertical spacing.
+    """
+    template = r"""\begin{{subfigure}}{{{width}\textwidth}}
+\centering
+{{\small\sffamily {title}}}
+\end{{subfigure}}"""
+    cells = [template.format(title=title, width=width) for title in titles]
+
+    return "\n\\hfill\n".join(cells) + "\n\n\\vspace{0.25em}\n\n"
+
+
 def add_subfigures(
     figure_names,
     width=None,
     n_cols=2,
     max_rows=None,
     caption=None,
+    titles=None,
 ):
     """Arrange figures in a LaTeX subfigure grid.
 
@@ -115,6 +140,9 @@ def add_subfigures(
         If None, all figures are placed in one environment.
     caption : str or None
         Caption included in each figure environment.
+    titles : sequence of str or None
+        Column titles, placed above the first row of each figure
+        environment. Must have one title per column.
 
     Returns
     -------
@@ -124,13 +152,18 @@ def add_subfigures(
     if width is None:
         width = round(0.95 / n_cols, 2)
 
+    if titles is not None and len(titles) != n_cols:
+        raise ValueError(f"Expected {n_cols} titles, got {len(titles)}.")
+
+    header = "" if titles is None else add_title_row(titles, width)
+
     figs_per_page = len(figure_names) if max_rows is None else n_cols * max_rows
 
     caption = "" if caption is None else f"\n\\caption{{{caption}}}"
 
     template = r"""\begin{{figure}}[H]{continued}
 \centering
-{rows}{caption}
+{header}{rows}{caption}
 \end{{figure}}"""
 
     figures = []
@@ -152,6 +185,7 @@ def add_subfigures(
             template.format(
                 continued="" if start == 0 else r"\ContinuedFloat",
                 rows="".join(rows),
+                header=header,
                 caption=caption,
             )
         )
