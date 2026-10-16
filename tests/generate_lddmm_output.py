@@ -1,6 +1,8 @@
 import string
 from pathlib import Path
 
+import numpy as np
+
 from polpo.dataset import NestedDataset, NestedKeyMap
 from polpo.surface_mesh import Surface
 from polpo.surface_mesh.generation.blob import create_blob
@@ -40,10 +42,7 @@ def generate_lddmm_output(path):
     }
     atlas_only_keys = {"D": [3], "E": [2]}
 
-    protocol = LddmmToGlobal(
-        known_correspondences=True,
-        results_dir=path,
-    )
+    protocol = LddmmToGlobal(results_dir=path)
     protocol.run(
         dataset,
         atlas_keys=atlas_keys,

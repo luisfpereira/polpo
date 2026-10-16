@@ -110,8 +110,8 @@ class LddmmToGlobal:
         kernel_width = self.ratio_kernel * attachment_kernel_width
 
         self.results_["kernel_tuning"] = {
-            "kernel_width": kernel_width,
-            "attachment_kernel_width": attachment_kernel_width,
+            "kernel_width": float(kernel_width),
+            "attachment_kernel_width": float(attachment_kernel_width),
         }
 
         return kernel_width, attachment_kernel_width
