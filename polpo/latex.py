@@ -244,7 +244,7 @@ def make_latex_document(body, packages=None, preamble=None):
 """
 
 
-def make_figure_document(body, figures_path):
+def make_figure_document(body, figures_path, margin="1in"):
     """Generate a standalone LaTeX document for figures.
 
     Includes the packages required for figures and subfigures,
@@ -256,20 +256,28 @@ def make_figure_document(body, figures_path):
         LaTeX figure content.
     figures_path : pathlib.Path
         Directory containing the figure files.
+    margin : str or None
+        Page margin passed to ``geometry`` (e.g. ``"1in"``), to preview
+        figures at a target text width. If None, the article default is used.
 
     Returns
     -------
     text : str
         Complete LaTeX document source.
     """
+    packages = ["graphicx", "float", "caption", "subcaption"]
     preamble = rf"""
 \graphicspath{{{{{figures_path.resolve()}/}}}}
 \pagestyle{{empty}}
 """
 
+    if margin is not None:
+        packages.append("geometry")
+        preamble += rf"\geometry{{margin={margin}}}" + "\n"
+
     return make_latex_document(
         body,
-        packages=["graphicx", "float", "caption", "subcaption"],
+        packages=packages,
         preamble=preamble,
     )
 
